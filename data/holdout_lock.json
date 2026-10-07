@@ -1,0 +1,14 @@
+{
+  "sealed_at": "2026-10-07T07:15:57+00:00",
+  "dev_end": "2018-12-31",
+  "holdout_start": "2019-01-01",
+  "holdout_last_day": "2026-08-31",
+  "rows": {
+    "panel": 1926,
+    "etf_ohlc": 7704
+  },
+  "files": {
+    "panel_holdout.parquet": "4cc3a1408629efcb940243c00254283a983e15ef0528915df0b09399ce505977",
+    "etf_ohlc_holdout.parquet": "117fa1a0fe4d3f9815a1cc18a563da0a6938822f6be136422e234f05276e8f2c"
+  }
+}

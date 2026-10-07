@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Data snapshots and built panels: rebuild with `python -m src.data.build`.
+# Hashes of every raw file are committed in data/raw_manifest.json and the
+# sealed holdout's content hash in data/holdout_lock.json.
+data/raw/
+data/processed/

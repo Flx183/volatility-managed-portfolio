@@ -1,0 +1,248 @@
+{
+  "aqr/bab_daily.xlsx": {
+    "bytes": 31458570,
+    "fetched_at": "2026-10-07T04:19:25+00:00",
+    "sha256": "c34f1ac4130f69dd73440dd62a53caf22df47bc7cc50f5cf544f8e522c28a8c6",
+    "url": "https://www.aqr.com/-/media/AQR/Documents/Insights/Data-Sets/Betting-Against-Beta-Equity-Factors-Daily.xlsx"
+  },
+  "bls/cpi_archive.htm": {
+    "bytes": 128514,
+    "fetched_at": "2026-10-07T04:19:41+00:00",
+    "sha256": "e522ffbbd037e18febae96b978ac1873617661e9e75a8f5f6ac6b4271ffd6c43",
+    "url": "https://www.bls.gov/bls/news-release/cpi.htm"
+  },
+  "bls/empsit_archive.htm": {
+    "bytes": 132517,
+    "fetched_at": "2026-10-07T04:25:20+00:00",
+    "sha256": "faabff400e4e64d8e354a5e6a6d5f6aebb59a006b951ae5f5259b47b7245adf3",
+    "url": "https://www.bls.gov/bls/news-release/empsit.htm"
+  },
+  "cboe/VIX_History.csv": {
+    "bytes": 473431,
+    "fetched_at": "2026-10-07T04:19:26+00:00",
+    "sha256": "cfcb9dce25bbbbd83aedca9a1480468bb25db2e988b3e893a4eebabb1905e1ab",
+    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+  },
+  "damodaran/histretSP.xlsx": {
+    "bytes": 267513,
+    "fetched_at": "2026-10-07T04:19:29+00:00",
+    "sha256": "36d24c091c34e6a58c62f9c26cf0378481863a2c3615bebe17324649f0614ef1",
+    "url": "https://pages.stern.nyu.edu/~adamodar/pc/datasets/histretSP.xlsx"
+  },
+  "fomc/fomccalendars.htm": {
+    "bytes": 165460,
+    "fetched_at": "2026-10-07T04:19:29+00:00",
+    "sha256": "7bf2222f7b36351c92ff77d6d4f812d8cc6cc0338e204d9977f3f89fa2a3aa93",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+  },
+  "fomc/fomchistorical1994.htm": {
+    "bytes": 93268,
+    "fetched_at": "2026-10-07T04:19:31+00:00",
+    "sha256": "3d2063c5a3910b5555a9e54ebd067c019202b0fa84f65e8e0438ae1892e742bc",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1994.htm"
+  },
+  "fomc/fomchistorical1995.htm": {
+    "bytes": 92141,
+    "fetched_at": "2026-10-07T04:19:31+00:00",
+    "sha256": "bc6bb8589634d5afe2053298a2535af43ef4c156ee23bcd9f0e1d1411cb9850f",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1995.htm"
+  },
+  "fomc/fomchistorical1996.htm": {
+    "bytes": 90989,
+    "fetched_at": "2026-10-07T04:19:32+00:00",
+    "sha256": "9064e021f74e0681f087551c03977a3c54b619e74d5bc5aa9d05c3eab9687e25",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1996.htm"
+  },
+  "fomc/fomchistorical1997.htm": {
+    "bytes": 90806,
+    "fetched_at": "2026-10-07T04:19:32+00:00",
+    "sha256": "c47993bc9be409cda4877aec5511b190d0396686a213fe5fa3d0abfb9cb1218d",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1997.htm"
+  },
+  "fomc/fomchistorical1998.htm": {
+    "bytes": 91956,
+    "fetched_at": "2026-10-07T04:19:32+00:00",
+    "sha256": "9c5440415a6ebb2d231cedc80fd878c09fa23ddd47b8e46caa11dcfe0a85cd1d",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1998.htm"
+  },
+  "fomc/fomchistorical1999.htm": {
+    "bytes": 91234,
+    "fetched_at": "2026-10-07T04:19:33+00:00",
+    "sha256": "01dbf16943eba5689852ed2b1118eb9ab3433b58addc9a488da771bde5b7e98d",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical1999.htm"
+  },
+  "fomc/fomchistorical2000.htm": {
+    "bytes": 91409,
+    "fetched_at": "2026-10-07T04:19:33+00:00",
+    "sha256": "d3568109f3a84fb324b2c0c8eb37270c196efbc837613afbb4a68aec8600c4e6",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2000.htm"
+  },
+  "fomc/fomchistorical2001.htm": {
+    "bytes": 95676,
+    "fetched_at": "2026-10-07T04:19:34+00:00",
+    "sha256": "47d4f93ea9e822c18a24a5d5c4302d5ec28f5be6d27ee5cb6e3e9d17bbff394f",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2001.htm"
+  },
+  "fomc/fomchistorical2002.htm": {
+    "bytes": 92734,
+    "fetched_at": "2026-10-07T04:19:34+00:00",
+    "sha256": "b48b2a94d80990497e38f832095934e92e7e428bb4e72d62921c1335c05f38ff",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2002.htm"
+  },
+  "fomc/fomchistorical2003.htm": {
+    "bytes": 96613,
+    "fetched_at": "2026-10-07T04:19:34+00:00",
+    "sha256": "188d9d10259d9f63fd2c30ab5deaefaad1bf27e1d1c5ae0d66751d1ccc20e91e",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2003.htm"
+  },
+  "fomc/fomchistorical2004.htm": {
+    "bytes": 92134,
+    "fetched_at": "2026-10-07T04:19:35+00:00",
+    "sha256": "e1cc63f04b1b1b5166e623bab54459395f186b8292c44425166b12725ce42304",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2004.htm"
+  },
+  "fomc/fomchistorical2005.htm": {
+    "bytes": 92303,
+    "fetched_at": "2026-10-07T04:19:35+00:00",
+    "sha256": "0babaf1c723e9eaebfb2fc391eae068926081ca8173a23882ad14aeeb2bdd575",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2005.htm"
+  },
+  "fomc/fomchistorical2006.htm": {
+    "bytes": 91981,
+    "fetched_at": "2026-10-07T04:19:35+00:00",
+    "sha256": "871c34fdeaa6802161d325757e542741afe2fca091368f0cf34c6c50dcd8f531",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2006.htm"
+  },
+  "fomc/fomchistorical2007.htm": {
+    "bytes": 94779,
+    "fetched_at": "2026-10-07T04:19:36+00:00",
+    "sha256": "f58bf9ae4b79f3304a5f6001058b32ca75e842ac41170e6963b1fcab7729af00",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2007.htm"
+  },
+  "fomc/fomchistorical2008.htm": {
+    "bytes": 100002,
+    "fetched_at": "2026-10-07T04:19:36+00:00",
+    "sha256": "870e9c64302aee227de60b76093b6e524350fa5b2084c68986ebcd2cc4d239ba",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2008.htm"
+  },
+  "fomc/fomchistorical2009.htm": {
+    "bytes": 98252,
+    "fetched_at": "2026-10-07T04:19:36+00:00",
+    "sha256": "9c55ce2f594f8b4b97e0eb7a2de3c0fda9d40373a43efc67651feef9d51c2429",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2009.htm"
+  },
+  "fomc/fomchistorical2010.htm": {
+    "bytes": 96220,
+    "fetched_at": "2026-10-07T04:19:37+00:00",
+    "sha256": "47687f11e28358778d2050541b38e6e16a4ed74b8e9830e0bb832b1d3062da4c",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2010.htm"
+  },
+  "fomc/fomchistorical2011.htm": {
+    "bytes": 98227,
+    "fetched_at": "2026-10-07T04:19:37+00:00",
+    "sha256": "a6d78952d012275fe6a7801b9ea5ee7ed9a442fc37788e40752db87beb34f045",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2011.htm"
+  },
+  "fomc/fomchistorical2012.htm": {
+    "bytes": 98148,
+    "fetched_at": "2026-10-07T04:19:38+00:00",
+    "sha256": "54a1a2be0081c85f7c90fc1f2acdb80aa570ecec65dc527677e8d705232c6fbd",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2012.htm"
+  },
+  "fomc/fomchistorical2013.htm": {
+    "bytes": 95809,
+    "fetched_at": "2026-10-07T04:19:38+00:00",
+    "sha256": "f186d189992ea47b2a14dfe96ac487e3509395ad95cf827fbdc66c073b2ef51d",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2013.htm"
+  },
+  "fomc/fomchistorical2014.htm": {
+    "bytes": 96089,
+    "fetched_at": "2026-10-07T04:19:38+00:00",
+    "sha256": "dc46b0cc5d28492ca5853c1fd39291b9bf81ef3a8ebf518f6834144026c143b1",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2014.htm"
+  },
+  "fomc/fomchistorical2015.htm": {
+    "bytes": 95241,
+    "fetched_at": "2026-10-07T04:19:39+00:00",
+    "sha256": "238665ec2a4740d22436c96bb7ce238e2b7f83bf1ff6dadb30d783d909dd23e5",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2015.htm"
+  },
+  "fomc/fomchistorical2016.htm": {
+    "bytes": 95829,
+    "fetched_at": "2026-10-07T04:19:39+00:00",
+    "sha256": "a441fa78df5c93cb8fef662c995a9d118cf317c76f0192f3a9ad057309c33d7c",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2016.htm"
+  },
+  "fomc/fomchistorical2017.htm": {
+    "bytes": 95200,
+    "fetched_at": "2026-10-07T04:19:39+00:00",
+    "sha256": "1562a9fc2a40602a15dbfa9a73c7d1fbc19412b471f7e84cbfb89dce89dc0ac7",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2017.htm"
+  },
+  "fomc/fomchistorical2018.htm": {
+    "bytes": 95705,
+    "fetched_at": "2026-10-07T04:19:40+00:00",
+    "sha256": "438c3d6ec3106ed1ba3b146abdce5d7ff505daf56d36ec27b230421a5b4da7b8",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2018.htm"
+  },
+  "fomc/fomchistorical2019.htm": {
+    "bytes": 97344,
+    "fetched_at": "2026-10-07T04:19:40+00:00",
+    "sha256": "873c2a3e81c4ad5166cd41d46b614ebeb0fd29a1f4326b7142ad8e386618a673",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2019.htm"
+  },
+  "fomc/fomchistorical2020.htm": {
+    "bytes": 98555,
+    "fetched_at": "2026-10-07T04:19:41+00:00",
+    "sha256": "d30c909a015b92f5dec0252c4026e1959eec7827da3396242e7f0189c2f20b81",
+    "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2020.htm"
+  },
+  "french/F-F_Momentum_Factor_daily_CSV.zip": {
+    "bytes": 85269,
+    "fetched_at": "2026-10-07T04:18:09+00:00",
+    "sha256": "ecf82b116e6ec56d2b79a2f27bd1d1598c217b5c6c25caa55b945bdd8a2c0b78",
+    "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_daily_CSV.zip"
+  },
+  "french/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip": {
+    "bytes": 150292,
+    "fetched_at": "2026-10-07T04:18:07+00:00",
+    "sha256": "7881223b51929ee0d6d23b8a28524aaec478a2c3d4eeca47224955cc845c5186",
+    "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip"
+  },
+  "french/F-F_Research_Data_Factors_daily_CSV.zip": {
+    "bytes": 178184,
+    "fetched_at": "2026-10-07T04:18:05+00:00",
+    "sha256": "2f29e22546069914890a712680a6f81f3680ebc3543b52864484d209ca13a7db",
+    "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
+  },
+  "yahoo/MTUM.csv": {
+    "bytes": 273203,
+    "fetched_at": "2026-10-07T04:19:30+00:00",
+    "sha256": "b03d467f509cec2a84fadfaa5ad9d37a7d3fe4a93c4b52034664bea902a6f2d2",
+    "url": "yfinance:MTUM"
+  },
+  "yahoo/QUAL.csv": {
+    "bytes": 268871,
+    "fetched_at": "2026-10-07T04:19:30+00:00",
+    "sha256": "aa95b3a701869135249aaec59b63e92aaf5bc704d1af8ea3de9940cf1554c2a4",
+    "url": "yfinance:QUAL"
+  },
+  "yahoo/SPY.csv": {
+    "bytes": 674326,
+    "fetched_at": "2026-10-07T04:19:30+00:00",
+    "sha256": "cbacca32cd398e7a6b66c2d653899846571b372c82be132a660f6807c424177a",
+    "url": "yfinance:SPY"
+  },
+  "yahoo/USMV.csv": {
+    "bytes": 306091,
+    "fetched_at": "2026-10-07T04:19:30+00:00",
+    "sha256": "3628fdbba1e14a553c1da72f35481dea3877cba70838753e08b094d8d40ebc65",
+    "url": "yfinance:USMV"
+  },
+  "yahoo/VIX.csv": {
+    "bytes": 699765,
+    "fetched_at": "2026-10-07T04:19:31+00:00",
+    "sha256": "1d030bf718b7a9eb227abb6f7119fb409d7a2e8922a857079c06c2c78bf2c81a",
+    "url": "yfinance:^VIX"
+  }
+}
