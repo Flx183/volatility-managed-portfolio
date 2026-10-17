@@ -1,0 +1,8 @@
+factor,factor_name,etf,survivor,f2_rank,cut_reason
+mkt,Market,SPY,True,5.0,none: passes every filter
+smb,Size,none,False,4.0,"F3 exploitable link: alpha -0.6% (t -0.7), reward/risk does not fall steadily with risk; F6 stable: alpha by era -0.6% / -1.1% / -1.0%; F4/F5 tradeable: no ETF in the data"
+hml,Value,none,False,2.0,"F3 exploitable link: alpha +1.5% (t 1.6), reward/risk does not fall steadily with risk; F4/F5 tradeable: no ETF in the data"
+mom,Momentum,MTUM,True,1.0,none: passes every filter
+rmw,Profitability,QUAL,False,6.0,"F3 exploitable link: alpha +2.4% (t 3.0), reward/risk does not fall steadily with risk; F5 liquid: QUAL dollar volume $29M, needs > $50M"
+cma,Investment,none,False,7.0,"F3 exploitable link: alpha +0.2% (t 0.3), reward/risk does not fall steadily with risk; F6 stable: alpha by era -0.1% / +1.6% / -1.4%; F4/F5 tradeable: no ETF in the data"
+bab,Betting against beta,USMV,True,3.0,none: passes every filter
