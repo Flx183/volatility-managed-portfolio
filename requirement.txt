@@ -9,3 +9,5 @@ scipy>=1.11
 statsmodels>=0.14
 scikit-learn>=1.4
 matplotlib>=3.8
+xlsxwriter>=3.1      # Phase 5: only to rebuild reports/phase5_hand_check.xlsx
+formulas>=1.2        # Phase 5: computes that workbook's formulas when rebuilding it

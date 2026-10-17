@@ -90,3 +90,50 @@ rec = pf.recipes(panel, "paper")        # recipe per year-end and mix, from past
 out = pf.returns(panel, "paper", rec)   # daily p, serving size and timed return per mix
 pf.tests(out[("inv_vol", "p")])         # Tests 1 and 4 on the primary
 ```
+
+
+## Phase 5: Strategy rules and the backtest engine
+
+A backtester verified on simulated data before any real-data result is read (`src/engine/`, report `reports/phase5_engine.ipynb`, hand check `reports/phase5_hand_check.xlsx`).
+
+```mermaid
+flowchart LR
+  A[Data] --> B[Forecast]
+  B --> C[Weights]
+  C --> D[Execution<br/>lag, cap, costs]
+  D --> E[Evaluation]
+```
+
+Five modules, each tested alone (`test/test_engine.py`): `data` (what is traded: daily excess returns, rf, positions per unit of size), `forecast` (next month's variance from data up to each month-end), `weights` (size = c_t × signal, capped), `execution` (trade at the month-end close, drift, trading cost, borrowing, short fee), `evaluation` (Sharpe ratio, spanning alpha, break-even cost, placebo). A new forecast model is a function passed as `forecaster`; nothing else changes.
+
+- Timing rules: inverse variance (c_t / σ̂², the primary), inverse volatility (c_t / σ̂), downside inverse volatility (c_t / σ̂⁻). Until Phase 6 picks a model, σ̂² is last month's realized variance.
+- c_t in real time: sd(r_{s+1}) / sd(r_{s+1} × signal_s) over the months up to t (at least 120 pairs; 36 on the ETF track, Phase 7's three-year rule), so every rule carries buy-and-hold's risk without using future data. It is computed on the mix held next month, applied to all past data.
+- Size between 0 and 1.5 (1.0 and 2.0 in Phase 8). Trading cost κ × |w_t − w̃_t| with drifted weights w̃; κ = 5 bp for SPY and 10 bp for factor ETFs; borrowed cash pays rf + 0.5% a year; the SPY short pays 0.25% a year (1% in Phase 8's stress test). Paper factors are before costs. Two kinds of break-even κ are reported, neither compared with Barroso and Santa-Clara's figures (which include trading inside the factor).
+- Benchmark: the same book at size 1, traded on the same dates at the same costs.
+
+Engine checks (`test/test_engine_checks.py`), all on simulated data, all passing:
+
+| Check | Setup | Result |
+|---|---|---|
+| Two worlds | GARCH, 500 years; A: μ constant, B: μ ∝ σ² | A: α +1.95% (t 6.0); B: α +0.13% (t 0.4) |
+| Constant forecast | σ̂² fixed, costs off | size exactly 1 (real-time c_t); α of order 10⁻¹⁶ |
+| Shuffled forecast | 1,000 reorderings in time | mean alpha +0.002%; real beats 100% in A (pass), 67% in B (fail) |
+| Oracle | next month's actual variance | A: +0.02 Sharpe over the baseline; unpredictable variance: +0.23 |
+| Hand check | 5 months rebuilt with spreadsheet formulas | 70 numbers match to 2 × 10⁻¹⁴; 7 planted bugs all caught |
+
+Placebo rule for the real data (from Phase 6): the real alpha must beat 95% of 1,000 shuffled alphas.
+
+The primary test (PREREGISTRATION Entry 3) is the Sharpe gain over buy-and-hold, one-sided at 5%, with three readings: **edge** if it rejects, **no meaningful edge** if the one-sided 95% upper bound is below 0.10 a year, **inconclusive** otherwise. It is reported with the minimum detectable effect at 80% power, both runs' realized volatility and the average size. Its power is low. On simulated data it rejects in 30% of 90-year histories with a true edge (minimum detectable effect 0.18) and in 10% of holdout-length ones (0.46).
+
+```python
+from src import engine as e
+from src import portfolio as pf
+book = e.data.from_phase4(panel, pf.recipes(panel, "paper"), "inv_vol")   # the primary book
+res = e.run(book, "inv_var")            # one row per holding month: decision, timed account, bench_ account
+e.evaluation.sharpe_gain_test(res)     # the primary test: gain, bounds, reading, minimum detectable effect
+e.placebo(book, "inv_var")              # real alpha vs 1,000 shuffled forecasts
+```
+
+```bash
+python -m src.engine.handcheck          # rebuild the hand-check workbook (needs xlsxwriter and formulas)
+```
