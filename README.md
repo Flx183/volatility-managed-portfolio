@@ -26,6 +26,10 @@ The holdout (2019 onward) sits in separate files, sealed by a content hash in
 `load_holdout(confirm="phase 9 final test")`, and every opening is logged in
 `data/holdout_access_log.csv`.
 
+ETF history is short: MTUM and QUAL start in 2013 and USMV in 2011, leaving 5 to 7 years before 2019,
+under the 10-year initial training window. So ETFs are never tuned on. Every model and cutoff is chosen
+from the paper factors, and the ETFs are only checked against those choices.
+
 
 ## Phase 2: Variance and EDA
 
@@ -57,7 +61,11 @@ Filters:
 
 - Exploitability for Strats: risk to reward ratio on how our assets can be exploited, where the reward must fall when the risk rises. Such that our strategy of reducing out position weight can be reduced when its getting risky. If the risk and reward is one on one, then there is no use to adjust our position based on the risk. Test from Phase 2, test 4 (the test measures how rewarding is it from risky times compared to calm times). Result: Only 3 assets: Market, Momentum, and BAB.
 
-- Stability: to ensure that the Strats is stable and applicable in all eras of time such that the Strats is still viable and not just based on specific era. Test: using the phase 2 test 4, implemented on splitting the history into 3 eras, then check if the a variable stays > 0 as a consistency check that the Strats is not a single era accident
+- Stability: to ensure that the Strats is stable and applicable in all eras of time such that the Strats is still viable and not just based on specific era. Test: using the phase 2 test 4, implemented on splitting the history into 3 eras, then check if the a variable stays > 0 as a consistency check that the Strats is not a single era accident. The 3 eras are equal thirds of the history available at the as-of date (not fixed calendar years), so the filter never reads data from after that date and can run in real time.
 
-- 
+- Systematic Risk (ETF): a long-only ETF is mostly market, so any ETF would pass an R² test on market exposure alone. The test therefore hedges the market out first (ETF minus its market beta times the market), then regresses the leftover tilt on market, size, value, momentum and BAB, and requires R² > 0.5. SPY is the market itself, so it is tested unhedged. Result: SPY and MTUM pass; USMV (0.38) and QUAL (0.17) fail.
+
+- Tradeable (ETF): median daily dollar volume over the last 252 trading days above $50 million. The bid-ask spread half of the rule is not applied (no quote data).
+
+Result: only Market (SPY) and Momentum (MTUM) survive. Betting-against-beta passes every factor filter but its ETF, USMV, fails the systematic risk filter.
 

@@ -27,5 +27,7 @@ DEV_END = pd.Timestamp("2018-12-31")
 HOLDOUT_START = pd.Timestamp("2019-01-01")
 
 FACTORS = ["mkt", "smb", "hml", "mom", "rmw", "cma", "bab"]
+# ETFs start in 2011 (USMV) to 2013 (MTUM, QUAL): 5-7 years before DEV_END, under the 10-year initial
+# training window. They are never tuned on; every choice comes from the paper factors.
 ETFS = ["SPY", "MTUM", "QUAL", "USMV"]
 EVENTS = ["fomc", "cpi", "jobs"]

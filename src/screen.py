@@ -14,6 +14,13 @@ Factors face filters 1, 2, 3 and 6 (their own return history). Filters 4 and 5 a
 to the ETF that stands in for the factor in trading (ETF_FOR). A factor with no ETF
 in the data cannot be traded, so it is cut.
 
+Filter 6 is real-time by construction: its eras are equal thirds of the history up to the
+as-of date, never fixed calendar years, so no era contains data from after that date.
+
+The ETFs are screened but never tuned on. They start in 2011-2013, leaving 5-7 years before
+2019, under the 10-year initial window, so every rule and cutoff here comes from the paper
+factors.
+
 Filters 1 and 3 reuse the Phase 2 tests and thresholds (src/variance.py: RULES).
 """
 
@@ -26,13 +33,15 @@ from src import variance as v
 from src.config import FACTORS
 
 # ---------------------------------------------------------------- rules
-# Fixed before any Phase 3 result was looked at. Phase 2 thresholds (Ljung-Box 1%,
+# Fixed before any Phase 3 result was looked at, except `etf_r2`, changed on 2026-10-17 after the
+# first run showed F4 could not fail (see ETF_REGRESSORS). Phase 2 thresholds (Ljung-Box 1%,
 # phi > 0.5, t > 1.96, rank correlation <= -0.7) are in variance.RULES.
 SCREEN_RULES = {
     "min_months": 120,        # a factor needs 10 years of complete months before it can be screened
     "n_eras": 3,              # F6: the history so far is cut into this many equal-length eras
     "etf_min_days": 252,      # F4, F5: an ETF needs a year of trading history to be judged
-    "etf_r2": 0.7,            # F4: R² of the ETF on market, size, value, momentum above this
+    "etf_r2": 0.5,            # F4: R² of the market-hedged ETF on market, size, value, momentum, BAB above this
+                              #     (0.5 chosen before the re-run, not tuned to its result)
     "dollar_volume": 50e6,    # F5: median daily dollar volume above this ...
     "liquidity_days": 252,    #     ... over the last 252 trading days
 }
@@ -44,7 +53,12 @@ SCREEN_RULES = {
 # profitability and USMV (minimum volatility) for betting-against-beta are loose matches.
 # Size, value and investment have no ETF among the four downloaded.
 ETF_FOR = {"mkt": "SPY", "mom": "MTUM", "rmw": "QUAL", "bab": "USMV"}
-ETF_REGRESSORS = ["mkt", "smb", "hml", "mom"]
+# F4 first hedges out market exposure (ETF minus beta x market, beta from the as-of sample), then
+# asks whether the leftover tilt is explained by these factors. Unhedged, a long-only ETF clears any
+# R² cutoff on market exposure alone, so the first version of F4 (R² > 0.7 on market, size, value,
+# momentum) could not fail: every ETF scored 0.82-0.96, and the market alone explained 0.78-0.95.
+# The market's own ETF has no tilt to hedge, so SPY is tested unhedged against the factors.
+ETF_REGRESSORS = ["mkt", "smb", "hml", "mom", "bab"]
 
 
 def year_ends(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -79,7 +93,7 @@ def _factor_row(r: pd.Series) -> dict:
 
 def _etf_row(factor: str, p: pd.DataFrame, o: pd.DataFrame) -> dict:
     """Filters 4 and 5 for the ETF standing in for `factor`. p, o: data up to the as-of date."""
-    row = dict(etf=ETF_FOR.get(factor, "none"), etf_days=0, r2=np.nan, r2_mkt=np.nan, f4=False,
+    row = dict(etf=ETF_FOR.get(factor, "none"), etf_days=0, beta=np.nan, r2=np.nan, r2_mkt=np.nan, f4=False,
                dollar_vol=np.nan, f5=False)
     if factor not in ETF_FOR:
         return row
@@ -88,8 +102,10 @@ def _etf_row(factor: str, p: pd.DataFrame, o: pd.DataFrame) -> dict:
     if len(y) < SCREEN_RULES["etf_min_days"]:
         return row
     X = p.loc[y.index, ETF_REGRESSORS]
-    row["r2"] = v.fit(y, X).rsquared
-    row["r2_mkt"] = v.fit(y, X["mkt"]).rsquared                     # information only
+    fit_mkt = v.fit(y, X["mkt"])
+    row["beta"], row["r2_mkt"] = fit_mkt.params["mkt"], fit_mkt.rsquared   # information only
+    tilt = y if factor == "mkt" else y - row["beta"] * X["mkt"]            # F4: hedge the market out
+    row["r2"] = v.fit(tilt, X).rsquared
     row["f4"] = bool(row["r2"] > SCREEN_RULES["etf_r2"])
     px = o[o["ticker"] == row["etf"]].tail(SCREEN_RULES["liquidity_days"])
     row["dollar_vol"] = (px["close"] * px["volume"]).median()
@@ -118,7 +134,7 @@ def _reasons(r: pd.Series) -> str:
         out.append(f"F4/F5 tradeable: {r['etf']} has {r['etf_days']} days of history, needs {SCREEN_RULES['etf_min_days']}")
     else:
         if not r["f4"]:
-            out.append(f"F4 systematic: {r['etf']} R² {r['r2']:.2f}, needs > {SCREEN_RULES['etf_r2']}")
+            out.append(f"F4 systematic: {r['etf']} hedged-tilt R² {r['r2']:.2f}, needs > {SCREEN_RULES['etf_r2']}")
         if not r["f5"]:
             out.append(f"F5 liquid: {r['etf']} dollar volume ${r['dollar_vol'] / 1e6:,.0f}M, "
                        f"needs > ${SCREEN_RULES['dollar_volume'] / 1e6:,.0f}M")

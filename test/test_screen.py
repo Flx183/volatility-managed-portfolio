@@ -65,3 +65,16 @@ def test_survivor_needs_every_filter():
     flags = out[["f1", "f3", "f6", "f4", "f5"]].all(axis=1) & (out["months"] >= 120)
     assert (out["survivor"] == flags).all()
     assert (out.loc[out["survivor"], "cut_reason"] == "").all()
+
+
+def test_filter4_looks_at_the_tilt_not_the_market():
+    panel, ohlc = _data()
+    rng = np.random.default_rng(2)
+    noise = rng.normal(0, 0.0005, len(panel))
+    panel["mtum"] = panel["mkt"] * 1.1 + noise                       # long-only: all market, no tilt
+    panel["usmv"] = panel["mkt"] * 0.7 + panel["bab"] * 0.8 + noise  # market plus a real BAB tilt
+    out = sc.screen(panel, ohlc, sc.year_ends(panel.index)[12])
+    assert out.loc["mom", "r2_mkt"] > 0.9 and not out.loc["mom", "f4"]    # market alone would have passed it
+    assert out.loc["bab", "f4"] and out.loc["bab", "r2"] > sc.SCREEN_RULES["etf_r2"]
+    assert out.loc["mkt", "f4"]                                           # SPY is the market: tested unhedged
+    assert "hedged-tilt R²" in out.loc["mom", "cut_reason"]
