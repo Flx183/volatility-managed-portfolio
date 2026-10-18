@@ -282,3 +282,162 @@ This replaces Entry 2, Section 8, item 8, which measured power on alpha. Source:
 | 92 months | B | 4% | 0.46 | 4% / 73% / 24% |
 
 The volatility rules have smaller minimum detectable effects over 90 years (0.11–0.12) than inverse variance. On holdout-length data the final test can call an edge only if the gain is several times world A's, and it can call "no meaningful edge" only if timing loses by about 0.2 a year or more. These are reported beside the result. They do not change the rule.
+
+---
+
+## Entry 4 — 2026-10-18: Phase 6, the forecast models and the selection rule
+
+**Status.** Written before any real-data forecast was made or scored, and before Phase 2's hints were re-run on the primary series p. What was known when it was written:
+
+- Phase 2's tests on the single factors (long memory everywhere; VIX helps market, value, momentum and BAB; bad days raise risk only for value).
+- Phase 4's development-sample numbers for the primary, under Phase 4's c and the last month's RV.
+- Phase 5's simulated results.
+
+The models were built and tested on simulated data only (`test/test_models.py`). Two checks against the `arch` package also ran on simulated data: GARCH and GJR estimates agree to four decimals, and the MCS agrees on membership.
+
+**Resolves** Entry 1, Section 7, item 3 (Phase 6's model-selection criterion). The selection rule and the scorecards are the research plan's. Every rule marked *(my choice)* was set with this entry by Claude, not by the plan.
+
+### 1. What every model forecasts (`src/models/inputs.py`)
+
+| Item | Rule |
+|---|---|
+| Target | At the close of each month's last trading day (the origin): Σ r² over the next 22 trading days, for the mix held next month. 22 days is one holding month. A weekly rule would use 5 |
+| Data | Data up to the origin's close. Every model makes its first forecast at the end of the mix's 120th month, so all eight are scored on the same months *(my choice: the project's 10-year minimum)* |
+| Window | Expanding |
+| Refit | Every month-end for M2–M6. Yearly for M7, at its first forecast and every December, because boosting with an inner walk-forward per recipe is the costly model. GARCH is cheap enough to refit monthly |
+| Embargo | A direct model's training row at day d has the target over d+1..d+22, so a refit at origin R uses only rows with d ≤ R − 22 |
+| Tuning | M7 only, by an inner walk-forward inside the training rows (Section 2) |
+| Per recipe | The engine forecasts the mix held next month over all its history (Entry 2). So every model runs its own walk-forward on each recipe's mix, each forecast made only from data up to its origin |
+
+### 2. The eight models (`src/models/`)
+
+| Model | Definition |
+|---|---|
+| M0 Rolling RV | Σ r² over the last 22 trading days |
+| M1 EWMA | σ̂²_{d+1} = 0.94 σ̂²_d + 0.06 r²_d, started at the first r²; forecast 22 σ̂² |
+| M2 GARCH(1,1) | Gaussian quasi-maximum likelihood on daily returns in percent, **zero mean** *(my choice: ε = r, the same r² as RV)*. Recursion started at the mean r² of the estimation data. Constraints: ω > 0, a, b ≥ 0, a + b < 1. Forecast: Σ_{h=1..22} [σ̄² + (a+b)^{h−1}(σ²_{t+1} − σ̄²)] |
+| M3 GJR-GARCH | M2 plus g ε²_{d−1} 1{ε_{d−1} < 0}, with a + g ≥ 0 and a + b + g/2 < 1. The forecast decays at rate a + b + g/2 |
+| M4 HAR, log | Ordinary least squares, on every trading day, of log(22-day forward RV) on d, w, m. These are the logs of the mean r² over the last 1, 5 and 22 days. The 1- and 5-day means are floored at 1/1000 of the 22-day mean before the log *(my choice: a near-zero return has log r² near −∞, down to −18 below its mean; the floor binds on about 2.6% of days, as normal theory predicts)*. Forecast exp(fit + s²/2), with s² the residual variance |
+| M5 Downside HAR | M4 plus the down-day share of each lag: Σ r² on down days / Σ r² over 1, 5 and 22 days *(my choice: in logs, a split into log downside and log upside variance fails, because one of the two is zero every day; the shares carry the same split)* |
+| M6 HAR-X | M5 if Phase 2's Test 3 passes on the series forecast (δ > 0 with t > 1.96), else M4, plus two inputs: log((VIX/100)²/12), and the counts of scheduled FOMC, CPI and jobs-report days in the next 22 trading days (scheduled in advance, so known at the origin). The extra inputs enter a refit once they have 60 months of history *(my choice)*: VIX from about 1995, events from about 1999. The regression is then fitted on the rows that have them, and before that M6 equals its base model |
+| M7 Gradient boosting | Inputs: M6's. Loss: gamma deviance, which is 2 × QLIKE, fitted on the 22-day RV with a log link (so no back-transform is needed) *(my choice)*. Rows: every fifth trading day *(my choice, for compute: neighbouring targets overlap by 21 days)*. Inner walk-forward at each refit: each of the last three years of training rows is forecast by a model trained on rows whose targets end before that year starts, and the setting with the lowest mean QLIKE wins. Grid *(my choice)*: 4, 8 or 16 leaves × 25, 50, 100, 200 or 400 trees; learning rate 0.05; at least 50 rows a leaf; no early stopping (its random split would leak across overlapping targets). Missing VIX and event values stay missing |
+
+**Simplicity order** (the selection rule's): M0, M1, M2, M3, M4, M5, M6, M7.
+
+### 3. Scorecard A: forecast accuracy (`src/models/scorecard.py`)
+
+| Item | Rule |
+|---|---|
+| Loss | QLIKE_t = RV_t / σ̂²_t − ln(RV_t / σ̂²_t) − 1, with RV_t the 22-day realized variance after the decision, for the mix held. This is the forecast the engine actually uses each month |
+| Months | Every holding month of Scorecard B whose 22-day target lies inside the development sample (all but the last) |
+| Reported | Mean QLIKE (the score), median QLIKE, mean RV / mean σ̂² (calibration) |
+| Model Confidence Set | Hansen, Lunde and Nason (2011), T_max statistic, eliminated down to one model with MCS p-values. The set is the models with MCS p-value ≥ 10% (a 90% set). Stationary bootstrap with a mean block of 12 months, 10,000 draws, seed 0 *(block, draws and seed: my choice)* |
+
+### 4. Scorecard B: strategy value
+
+| Item | Rule |
+|---|---|
+| Specification | The primary book (Entry 1, Section 6), with only the forecast changing. Inverse-variance timing, inverse-volatility mix, monthly, cap 1.5, real-time c_t from 120 pairs. Costs are Entry 2's for the track, which is none for the paper factors. Turnover and the break-even κ are reported, so a model that trades more shows |
+| Months | The development walk-forward, the same months for all eight: from the first month with a c_t to December 2018 |
+| Reported | Sharpe ratio; CER = 12 × (mean − γ/2 × variance) with **γ = 5** *(my choice)*; realized volatility (Entry 3); mean; the primary test's Sharpe gain over buy-and-hold with its reading; spanning α; mean size; share of months capped; turnover; break-even κ; the engine's placebo (1,000 shuffled forecasts, pass at 95%) |
+| Reference rows (not candidates) | Buy-and-hold, and the oracle: the holding month's actual RV, which looks ahead. The oracle-minus-M0 gap is the room any forecast has to win |
+
+### 5. The selection rule (the plan's, fixed here)
+
+**Pick the simplest model inside the MCS whose Sharpe ratio is within one standard error of the best.** Then freeze it; its clean test is the holdout.
+
+- **Best**: the highest Sharpe ratio of the eight on Scorecard B.
+- **One standard error** *(my choice of definition)*: the standard error of the gap Sharpe(best) − Sharpe(model), by the primary test's method (Ledoit-Wolf delta method, Newey-West 6 lags, `evaluation.sharpe_difference`). A model qualifies if its gap is at most that error. The eight runs share their months and most of their returns, so the paired error says whether two models tie. The unpaired error of the best model's own Sharpe ratio would be about 0.15 over 68 years, and every model would qualify.
+- **Fallback** *(my choice)*: if no model inside the MCS qualifies, the MCS condition is dropped, and the pick is the simplest model within one standard error of the best. The best model itself always qualifies.
+- **Q4**: the Spearman correlation between the QLIKE ranking and the Sharpe ranking of the eight. Near zero means forecast accuracy is not the bottleneck. With eight models it is reported, not tested.
+
+### 6. Two frozen choices
+
+| Choice | Chosen on | Applied to |
+|---|---|---|
+| Combined portfolio | the primary book (paper track, inverse-volatility mix) | the primary specification from Phase 7 on |
+| SPY reference *(my reading of the plan)* | the market factor, as SPY's long-history stand-in, timed alone. Costs are SPY's (5 bp a trade, borrowed cash at rf + 0.5%). ETFs are never tuned on (Entry 1, Section 2) | SPY timed alone, from Phase 7 on |
+
+M6's base (M4 or M5) is set separately for each, by Test 3 on that book's series: p for the primary, the market factor for the SPY reference.
+
+### 7. Order of work, and what is information only
+
+1. The replication of Entry 3, Section 2: Barroso and Santa-Clara's momentum (0.53 to 0.97, 1927–2011: 126-day variance, 12% target, no cap) and Moreira and Muir's market (α about 4.9% a year, 1926–2015: full-sample c, no cap). Average size reported. Our momentum is French's UMD factor, not their decile spread, so its numbers should be close, not equal.
+2. Phase 2's Tests 2, 3, 5 and 9 on each book's series. They set expectations and M6's base, nothing else.
+3. Both scorecards for all eight models, then the rule.
+
+Information only, never changing the choice:
+- the VIX era (from the first month M6 uses VIX);
+- the oracle;
+- the placebo;
+- the single-factor replications.
+
+---
+
+## Entry 5 — 2026-10-18: Phase 6 outcome, one fix after the first run, and the frozen choices
+
+**Status.** Written after the Phase 6 runs. It records three things:
+
+- one change made after the first run: a fix to GARCH estimation;
+- the outcome under Entry 4's rules;
+- the two frozen choices.
+
+Entry 4 is not edited. Every Entry 4 rule stays; the fix changes how M2 and M3 are estimated, not what they are or how they are scored.
+
+### 1. The first run, and why its choice is void
+
+**How it was found.** The first run's Scorecard A gave M3 (GJR-GARCH) on the primary book a mean QLIKE of 0.957, against 0.30–0.39 for the other seven. Its mean RV / mean forecast was 0.0000. Its forecasts reached 5.7 × 10¹⁰ times M0's (recipe 54, held in 1995).
+
+**The cause.** In some refits the SLSQP optimizer reported success at a point far worse than its start, for example log-likelihood −5,865 against −16,796 at its warm start, in recipe 0's February 2007 refit of M3. ω, the GARCH intercept, came out about 10⁹ times too large and b at 0. Each refit starts from the last estimate, so the bad point was carried forward month after month. On the primary book, 1,195 of 73,164 M3 refits and 105 of the M2 refits were degenerate (ω above the mean r², or b below 0.5). The SPY reference had none. The unscaled problem was the root: ω is about 1/1,000 of the other parameters, and SLSQP is sensitive to scale.
+
+**Why it touched the choice.** The first run chose **M0** for the primary book, but only because M0 sat inside the MCS, at p = 0.117. That p-value was inherited from the elimination round that removed M3, whose wild losses made the round's test too noisy to reject. It chose **M2** for the SPY reference.
+
+**The fix** (`filters.garch_fit`, 2026-10-18):
+- ω is optimized as a share of the mean r², so every parameter is of order 0.01–1, and ω is capped at the mean r².
+- A refit's result is kept only if its likelihood is at least as good as its start's.
+
+Nothing else changed: the models, the data, the refit schedule, both scorecards and the selection rule are as in Entry 4.
+
+**Checks of the fix.**
+- On real refits of two recipes (1940, 1979 and 2018; GARCH and GJR), the estimates match the `arch` package to four decimals. No degenerate refit remains.
+- A new test (`test_a_garch_refit_never_ends_worse_than_its_start_and_keeps_omega_in_scale`) fails on the old code and passes on the new.
+- The build now stops if any forecast is more than 1,000 times, or less than 1/1,000 of, M0's for the same month (`build.sanity`). Real forecasts stay within about 10 times of each other.
+- In the 2018 recipe, 11–17% of refits still stop short of the optimizer's tolerance. They sit at the optimum of the month before and never at a worse likelihood than it.
+
+**Not changed by the fix.** HAR (M4–M6) and boosting (M7) were not recomputed: the cache now keys each model on its own code. Their cached forecasts equal a fresh computation to the last digit, at three primary recipes and the SPY reference. The SPY reference's Sharpe ratios move by at most 0.0005, and its choice is unchanged. The first run's tables are kept in `reports/phase6_first_run_*.csv`.
+
+**What was seen first.** The fix was made after the first run's scorecards and choice were seen. It was made because no reading of the plan allows a forecast of 10¹⁰ times the realized variance, not to change the choice. The re-run decides, whatever it chooses.
+
+### 2. Outcome (development sample; `reports/phase6_scorecard_*.csv`, `reports/phase6_selection.csv`, `reports/phase6_forecasts.ipynb`)
+
+**Samples.**
+- Primary book: 817 holding months, December 1950 to December 2018; Scorecard A uses 816.
+- SPY reference: 870 holding months, July 1946 to December 2018; Scorecard A uses 869.
+
+**M6's base.** By Test 3, M4 for both books. Test 3 failed on both: δ = −0.03 (t −0.5) on p, and +0.06 (t +1.1) on the market.
+
+| Book | Lowest QLIKE | Outside the MCS | Highest Sharpe | Sharpe range of the eight | Buy-and-hold Sharpe | Oracle Sharpe | Rank correlation (Q4) |
+|---|---|---|---|---|---|---|---|
+| Primary | M6 (0.3025) | M0 (p 0.001) | M3 (1.567) | 1.509–1.567 | 1.211 | 2.222 | +0.10 |
+| SPY reference | M6 (0.2727) | M0, M1, M7 | M3 (0.533) | 0.503–0.533 | 0.497 | 1.124 | +0.62 |
+
+**The selection.**
+
+- **Primary: M3, GJR-GARCH.** It has the best Sharpe ratio, and no simpler model inside the MCS is within one standard error of it. M0 is within one error but outside the MCS. M1 misses by 0.002 (gap 0.042, error 0.040), and M2 by 0.005 (gap 0.015, error 0.010). The fallback was not needed. **This is a knife-edge choice.** Had M1 qualified, the rule would have picked EWMA.
+- **SPY reference: M2, GARCH(1,1).** It is the simplest model inside the MCS within one standard error of the best (M3; gap 0.006, error 0.014). M0 and M1 are within one error but outside the MCS.
+
+**Readings, all information only.**
+- **Primary book.** Every model reads "edge" on the primary test: Sharpe gains of 0.30–0.36 over buy-and-hold, p ≤ 0.004. All pass the placebo, beating 100% of shuffled alphas. These are development-sample, before-cost numbers on a book holding untradeable BAB, so they are an upper bound. They are not the final test.
+- **SPY reference.** Every model reads "inconclusive": gains of 0.006–0.036. Seven of eight pass the placebo; M7 fails at 94.5%.
+- **The oracle.** The gap between the oracle and M0 (0.71 primary, 0.61 SPY) is ten to twenty times the spread among the eight models (0.06, 0.03). So the room to win is large, and no real forecast here takes much of it.
+- **Q4.** For the primary book, accuracy barely ranks strategy value (+0.10). The GARCH models win on Sharpe while sitting mid-table on QLIKE. Their smoother forecasts let real-time c_t hold a larger average size (1.00 against M0's 0.67), and the 1.5 cap then binds in more months (25% against 11%).
+- **CER.** CER follows size at these low volatilities, as Entry 3 warned. M0 and M1 beat buy-and-hold on Sharpe but trail it on CER.
+
+### 3. Frozen choices
+
+| Choice | Model | Specification |
+|---|---|---|
+| Combined portfolio | **M3 GJR-GARCH** | zero-mean Gaussian QMLE on daily returns of the mix held next month; expanding window; refit every month-end with this entry's safeguards; the 22-day forecast is the sum of h-step forecasts decaying at a + b + g/2 |
+| SPY reference | **M2 GARCH(1,1)** | the same, with g = 0 |
+
+Both are frozen from Phase 7 on. Their clean test is the holdout. The choice for the combined portfolio rests on a 0.002 margin in the one-standard-error rule. That is reported beside every result that uses it, and it is not revisited.

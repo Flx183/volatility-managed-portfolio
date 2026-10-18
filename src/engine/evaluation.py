@@ -4,8 +4,10 @@ Engine stage 5: evaluation
 Everything here reads the engine's monthly output and nothing else.
 
     sharpe(excess)               annualized Sharpe ratio of monthly excess returns
+    sharpe_difference(a, b)      Sharpe(a) - Sharpe(b) and its standard error (Ledoit-Wolf, Newey-West)
     sharpe_gain_test(res)        the primary test: Sharpe gain over buy-and-hold, one-sided at 5%,
                                  its 95% bounds, the three readings and the minimum detectable effect
+    cer(excess, gamma)           certainty-equivalent return a year, mean - (γ/2) variance
     spanning(managed, bench)     managed = α + β bench + ε: α a year, White t, β, appraisal ratio
     summary(res)                 timed vs buy-and-hold: mean, realized volatility, Sharpe, drawdown,
                                  turnover, costs, and the timed run's average size
@@ -43,6 +45,31 @@ def sharpe(excess: pd.Series) -> float:
     return excess.mean() / excess.std() * np.sqrt(12)
 
 
+def cer(excess: pd.Series, gamma: float) -> float:
+    """Certainty-equivalent return a year of monthly excess returns for a mean-variance investor with
+    risk aversion γ: 12 x (mean - γ/2 x variance). It depends on the volatility, so it is always
+    reported beside it."""
+    return 12 * (excess.mean() - gamma / 2 * excess.var())
+
+
+def sharpe_difference(a: pd.Series, b: pd.Series, lags: int = TEST_RULES["lags"]) -> tuple[float, float]:
+    """Sharpe(a) - Sharpe(b), a year, and its standard error: the delta method of Ledoit and Wolf
+    (2008) on the moments (μ_a, μ_b, E a², E b²), with a Newey-West covariance. Monthly excess returns
+    over the same months; the error is small when the two series move together."""
+    x = pd.concat([a, b], axis=1).dropna().to_numpy()
+    n = len(x)
+    mu, m2 = x.mean(axis=0), (x ** 2).mean(axis=0)
+    var = m2 - mu ** 2
+    grad = np.array([m2[0] / var[0] ** 1.5, -m2[1] / var[1] ** 1.5, -mu[0] / (2 * var[0] ** 1.5), mu[1] / (2 * var[1] ** 1.5)])
+    y = np.column_stack([x - mu, x ** 2 - m2])
+    psi = y.T @ y / n
+    for j in range(1, lags + 1):
+        gamma = y[j:].T @ y[:-j] / n
+        psi += (1 - j / (lags + 1)) * (gamma + gamma.T)
+    se = np.sqrt(grad @ psi @ grad / n) * np.sqrt(12)
+    return sharpe(a) - sharpe(b), se
+
+
 def sharpe_gain_test(res: pd.DataFrame, lags: int = TEST_RULES["lags"]) -> dict:
     """The primary test of timing: gain = Sharpe(timed) - Sharpe(buy-and-hold), a year, from the
     run's monthly excess returns (after the run's costs).
@@ -55,21 +82,10 @@ def sharpe_gain_test(res: pd.DataFrame, lags: int = TEST_RULES["lags"]) -> dict:
         "inconclusive"        neither
     mde: the gain the test would detect with 80% probability, (z_0.95 + z_0.80) x standard error.
     Realized volatility of both runs and the timed run's average size are reported beside it."""
-    x = res[["excess", "bench_excess"]].dropna().to_numpy()
-    n = len(x)
-    mu, m2 = x.mean(axis=0), (x ** 2).mean(axis=0)
-    var = m2 - mu ** 2
-    grad = np.array([m2[0] / var[0] ** 1.5, -m2[1] / var[1] ** 1.5, -mu[0] / (2 * var[0] ** 1.5), mu[1] / (2 * var[1] ** 1.5)])
-    y = np.column_stack([x - mu, x ** 2 - m2])
-    psi = y.T @ y / n
-    for j in range(1, lags + 1):
-        gamma = y[j:].T @ y[:-j] / n
-        psi += (1 - j / (lags + 1)) * (gamma + gamma.T)
-    se = np.sqrt(grad @ psi @ grad / n) * np.sqrt(12)
-    gain = sharpe(res["excess"]) - sharpe(res["bench_excess"])
+    gain, se = sharpe_difference(res["excess"], res["bench_excess"], lags)
     z_level, z_power = norm.ppf(1 - TEST_RULES["level"]), norm.ppf(TEST_RULES["power"])
     out = {"gain": gain, "se": se, "z": gain / se, "p": norm.sf(gain / se), "lower": gain - z_level * se,
-           "upper": gain + z_level * se, "mde": (z_level + z_power) * se, "months": n,
+           "upper": gain + z_level * se, "mde": (z_level + z_power) * se, "months": int(res[["excess", "bench_excess"]].dropna().shape[0]),
            "volatility: timed": res["excess"].std() * np.sqrt(12),
            "volatility: buy-and-hold": res["bench_excess"].std() * np.sqrt(12), "mean size": res["size"].mean()}
     return {**out, "reading": reading(out)}

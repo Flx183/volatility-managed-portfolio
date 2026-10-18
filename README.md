@@ -137,3 +137,52 @@ e.placebo(book, "inv_var")              # real alpha vs 1,000 shuffled forecasts
 ```bash
 python -m src.engine.handcheck          # rebuild the hand-check workbook (needs xlsxwriter and formulas)
 ```
+
+
+## Phase 6: Forecast models
+
+Which variance forecast makes the strategy work best, not just which has the smallest error (`src/models/`, report `reports/phase6_forecasts.ipynb`, rules in PREREGISTRATION Entries 4 and 5).
+
+Every model forecasts the same thing: at each month-end close, the total variance of the next 22 trading days (one holding month), from data up to that close. Each runs its own expanding-window walk-forward on every recipe's mix. The fitted models are refit at every month-end (boosting yearly), and the direct models drop the last 22 days of training targets, because those targets overlap the forecast period.
+
+| Model | Forecast | Expected to help if |
+|---|---|---|
+| M0 Rolling RV | Σ r² over the last 22 days | the papers' baseline |
+| M1 EWMA | 22 × EWMA of r², λ = 0.94 | no fitting |
+| M2 GARCH(1,1) | h-step forecasts summed over 22 days | short memory |
+| M3 GJR-GARCH | GARCH plus a kick after down days | asymmetry |
+| M4 HAR, log | log 22-day RV on 1-, 5-, 22-day log RV, direct, bias-corrected | long memory |
+| M5 Downside HAR | M4 plus each lag's down-day share | long memory plus asymmetry |
+| M6 HAR-X | M4 (Test 3 failed) plus log VIX variance and scheduled-event counts | VIX adds information |
+| M7 Gradient boosting | M6's inputs, QLIKE (gamma) loss, tuned by an inner walk-forward | nonlinearity |
+
+Two scorecards, on the same months:
+- **A. Accuracy:** QLIKE, with the Model Confidence Set at 90%.
+- **B. Strategy value:** each forecast plugged into the Phase 5 engine at the primary specification. Sharpe ratio, CER (γ = 5), volatility, the primary test, the placebo.
+
+The rule, fixed in advance: **the simplest model inside the MCS whose Sharpe ratio is within one standard error of the best** (the error of the gap, by the primary test's method).
+
+Results (development sample; the primary book is an upper bound: paper BAB, no costs):
+
+| | Primary (market + momentum + BAB), 1950–2018 | SPY reference (market factor, SPY's costs), 1946–2018 |
+|---|---|---|
+| Most accurate | M6 HAR-X (QLIKE 0.303); only M0 outside the MCS | M6 HAR-X (0.273); M0, M1, M7 outside the MCS |
+| Sharpe ratio, eight models | 1.51–1.57 (buy-and-hold 1.21); all "edge", all pass the placebo | 0.50–0.53 (buy-and-hold 0.50); all "inconclusive" |
+| Oracle (perfect forecast) | 2.22 | 1.12 |
+| Accuracy vs value, rank correlation (Q4) | +0.10: accuracy is not the bottleneck | +0.62 |
+| **Frozen choice** | **M3 GJR-GARCH**: best Sharpe; EWMA missed the rule by 0.002 | **M2 GARCH(1,1)** |
+
+- **A perfect forecast would add far more than any of these models.** The oracle beats rolling RV by 0.6–0.7 Sharpe, while the eight models differ by only 0.03–0.06.
+- **The Sharpe ranking follows the average size, not accuracy.** On the primary book the GARCH models sit mid-table on QLIKE but win on Sharpe. Their smooth forecasts let the real-time c_t hold a larger size (1.0 against rolling RV's 0.67), and the cap binds more often.
+- **A bug was found and fixed after the first run (Entry 5).** The GARCH optimizer reported success at absurd parameters, and some GJR forecasts reached 10¹⁰ times the realized variance. That made the first run's choice for the primary (rolling RV) void. The fix scales ω and never accepts a worse likelihood than the start. Its estimates match the `arch` package to four decimals. The first run's tables are kept in `reports/phase6_first_run_*.csv`.
+
+```python
+from src import models as md
+from src.models import build, scorecard as sc
+specs = build.setup(panel)                       # "paper" and "spy": book, costs, the eight forecasters
+res = sc.run(specs["paper"]["book"], specs["paper"]["fs"]["M3"], specs["paper"]["costs"])   # the frozen model in the engine
+```
+
+```bash
+python -m src.models.build      # fill the forecast cache in parallel (about an hour on 10 cores the first time), run the placebos, write reports/phase6_*.csv
+```
