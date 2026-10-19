@@ -6,7 +6,8 @@ Turns target positions into the returns a brokerage account would show.
 The lag. The size decided at the close of month t is traded at that close (or `delay` trading days
 later) and held until the next trade. Holding period m runs from the trade after month m-1 to the
 trade after month m, so its return never depends on a forecast made with its own data. With
-delay=0, holding period m is exactly calendar month m.
+delay=0, holding period m is exactly calendar month m. A weekly book (Phase 7) does the same with
+weeks ending on Friday.
 
 Drift. Between trades nothing is rebalanced, so an instrument that gains becomes a bigger share
 of the account. With w the positions put on at the trade and R, R_f the period's total returns:
@@ -77,18 +78,19 @@ class Periods:
     days: pd.Series               # trading days in the period
 
 
-def period_labels(index: pd.DatetimeIndex, delay: int = 0) -> pd.PeriodIndex:
-    """The holding period of each trading day. Period m opens at the close of month m-1's last
-    trading day plus `delay` trading days, and closes at the same point after month m."""
-    month = index.to_period("M")
-    last = pd.Series(np.arange(len(index))).groupby(month).max()          # position of each month's last day
+def period_labels(index: pd.DatetimeIndex, delay: int = 0, freq: str = "M") -> pd.PeriodIndex:
+    """The holding period of each trading day. Period m opens at the close of period m-1's last
+    trading day plus `delay` trading days, and closes at the same point after period m. Periods are
+    calendar months (freq "M") or weeks ending on Friday ("W-FRI")."""
+    period = index.to_period(freq)
+    last = pd.Series(np.arange(len(index))).groupby(period).max()         # position of each period's last day
     bounds = (last + delay).clip(upper=len(index) - 1).drop_duplicates(keep="first")
     return bounds.index[np.searchsorted(bounds.to_numpy(), np.arange(len(index)), side="left")]
 
 
 def holding_periods(book: Book, costs: Costs = NO_COSTS, delay: int = 0) -> Periods:
     x, rf = book.returns, book.rf.reindex(book.returns.index)
-    labels = period_labels(x.index, delay)
+    labels = period_labels(x.index, delay, book.freq)
     fee = pd.Series(costs.short_fee, dtype=float).reindex(x.columns).fillna(0.0) / DAYS_PER_YEAR
 
     def grow(daily):                                          # a period with any missing day has no growth
@@ -116,14 +118,14 @@ def simulate(periods: Periods, targets: pd.DataFrame) -> pd.DataFrame:
     financing), turnover (Σ |trade| at the opening trade), trading (its cost), net, rf, excess
     (net - rf), and per instrument w_<i> (held) and drift_<i> (drifted, at the period's end)."""
     m = targets.index
-    if len(m) and (m != pd.period_range(m[0], periods=len(m), freq="M")).any():
-        raise ValueError("holding months must be consecutive")
+    if len(m) and (m != pd.period_range(m[0], periods=len(m), freq=m.freq)).any():
+        raise ValueError("holding periods must be consecutive")
     w, cols = targets, targets.columns
     held = w != 0
     g_long, g_short = periods.growth.loc[m, cols], periods.growth_short.loc[m, cols]
-    if g_long[held].isna().any().any():
-        bad = g_long[held].isna().any(axis=1)
-        raise ValueError(f"a held instrument has no return in {bad.index[bad][0]}")
+    missing = (g_long.isna() & held).any(axis=1)              # only a held instrument needs a return
+    if missing.any():
+        raise ValueError(f"a held instrument has no return in {missing.index[missing][0]}")
     g_long, g_short = g_long.where(held, 1.0), g_short.where(held, 1.0)
     g = g_long.where(w >= 0, g_short)                       # shorts pay the fee
     cash = 1 - w.sum(axis=1)

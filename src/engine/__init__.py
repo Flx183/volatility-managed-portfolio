@@ -12,8 +12,9 @@ Five stages, each in its own module and testable alone:
     run(book, rule="inv_var")   chains them: one row per holding month
     placebo(book, rule)         real alpha against 1,000 runs with the forecast shuffled in time
 
-A new forecast model is a function (daily returns -> monthly Series), passed as `forecaster`;
-nothing else changes.
+A new forecast model is a function (daily returns -> one forecast per holding period), passed as
+`forecaster`; nothing else changes. Holding periods are months, or weeks for a weekly book (Phase 7);
+c_t then counts weekly pairs, and min_months is the number of pairs it needs.
 
 The benchmark is the same book at a constant size of 1 (the buy-and-hold mix), traded on the same
 dates and paying the same costs, so the timed and untimed runs differ only in the size.
@@ -58,15 +59,19 @@ TIMING = {
 
 # ---------------------------------------------------------------- the pipeline
 
+class NoSize(ValueError):
+    """No holding period has a size: too little history for c_t."""
+
+
 def prepare(book: Book, forecaster) -> dict[int, pd.DataFrame]:
-    """Stages 1 and 2. For each distinct recipe: the monthly table of the mix it holds, over all
-    history, with the forecast made at each month-end."""
+    """Stages 1 and 2. For each distinct recipe: the per-period table of the mix it holds, over all
+    history, with the forecast made at the end of each period."""
     ids = data.recipe_ids(book.positions)
     out = {}
     for k in ids.unique():
         pos = book.positions.loc[ids == k].iloc[0]
         p = data.mix(book, pos)
-        out[k] = data.monthly(p, book.rf).join(forecaster(p).rename("forecast"), how="left")
+        out[k] = data.table(p, book.rf, book.freq).join(forecaster(p).rename("forecast"), how="left")
     return out
 
 
@@ -91,7 +96,7 @@ def decide(book: Book, prepared: dict[int, pd.DataFrame], power: float, c="realt
     dec["capped"] = dec["c"] * dec["signal"] > (np.inf if max_size is None else max_size)
     valid = dec["size"].notna()
     if not valid.any():
-        raise ValueError("no month has a size: too little history for c_t")
+        raise NoSize("no month has a size: too little history for c_t")
     dec = dec.loc[valid.idxmax():]
     if dec["size"].isna().any():
         raise ValueError(f"no size for holding month {dec.index[dec['size'].isna()][0]}")

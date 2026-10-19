@@ -24,6 +24,9 @@ walk-forward inside its training window only. Rules are in MODEL_RULES (PREREGIS
 
 Development sample only. The slow forecasts are cached on disk (data/processed/phase6_cache/);
 `python -m src.models.build` fills the cache in parallel.
+
+Phase 7 adds weekly versions (weekly.py): the same eight models at a 5-day horizon, forecast at each
+week's last trading day. forecasters(panel, down, freq="W-FRI") returns them.
 """
 
 from __future__ import annotations
@@ -38,7 +41,8 @@ import pandas as pd
 
 from src import variance as v
 from src.engine import forecast as engine_forecast
-from src.models import boost, filters, har, inputs
+from src.engine.data import MONTH, WEEK
+from src.models import boost, filters, har, inputs, weekly
 from src.models.inputs import schedule
 
 # ---------------------------------------------------------------- rules
@@ -58,11 +62,12 @@ ORDER = ["M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7"]   # simplest first: the
 NAMES = {"M0": "Rolling RV", "M1": "EWMA", "M2": "GARCH(1,1)", "M3": "GJR-GARCH", "M4": "HAR (log)",
          "M5": "Downside HAR", "M6": "HAR-X", "M7": "Gradient boosting"}
 
-def _cached(fn):
+def _cached(fn, also=()):
     """fn, cached on disk by the hash of its inputs, in a folder named by the hash of the code it runs
-    (its module, inputs.py and Phase 2's variance.py). A change to that code starts a fresh folder,
-    so a stale forecast is never read, and a change to one model leaves the others' caches alone."""
-    code = [Path(inspect.getfile(fn)), Path(inputs.__file__), Path(v.__file__)]
+    (its module, inputs.py, Phase 2's variance.py and any modules in `also`). A change to that code
+    starts a fresh folder, so a stale forecast is never read, and a change to one model leaves the
+    others' caches alone."""
+    code = [Path(inspect.getfile(fn)), Path(inputs.__file__), Path(v.__file__), *(Path(m.__file__) for m in also)]
     folder = inputs.CACHE_ROOT / hashlib.sha256(b"".join(f.read_bytes() for f in code)).hexdigest()[:12]
     return joblib.Memory(folder, verbose=0).cache(fn)
 
@@ -70,6 +75,10 @@ def _cached(fn):
 garch_fits = _cached(filters.garch_fits)
 har_fits = _cached(har.har_fits)
 boost_fits = _cached(boost.boost_fits)
+# Weekly (Phase 7): weekly.py also runs code from filters.py and boost.py, so their hashes are in the key.
+garch_weekly = _cached(weekly.garch, also=(filters, boost))
+har_weekly = _cached(weekly.har_fits, also=(filters, boost))
+boost_weekly = _cached(weekly.boost_fits, also=(filters, boost))
 
 
 def exog(panel: pd.DataFrame, p: pd.Series) -> pd.DataFrame:
@@ -78,10 +87,31 @@ def exog(panel: pd.DataFrame, p: pd.Series) -> pd.DataFrame:
     return inputs.exog(panel, p.dropna().index)
 
 
-def forecasters(panel: pd.DataFrame, down: bool) -> dict[str, Callable[[pd.Series], pd.Series]]:
+def weekly_exog(panel: pd.DataFrame, p: pd.Series) -> pd.DataFrame:
+    """exog() for the weekly models: event counts over the next 5 days. Build them only this way."""
+    return weekly.exog(panel, p.dropna().index)
+
+
+def forecasters(panel: pd.DataFrame, down: bool, freq: str = MONTH) -> dict[str, Callable[[pd.Series], pd.Series]]:
     """The eight models as engine forecasters, in ORDER. down: whether M6 and M7 build on M5's
     inputs (Test 3 passes on the series being forecast) or on M4's. VIX and the event calendar come
-    from the panel."""
+    from the panel. freq: monthly forecasts of the next 22 days, or weekly ones of the next 5 (WEEK)."""
+    if freq == WEEK:
+        x = lambda p: weekly_exog(panel, p)
+        fs = {
+            "M0": weekly.rolling,
+            "M1": weekly.ewma,
+            "M2": lambda p: garch_weekly(p, False, garch_fits(p, False)[1]),
+            "M3": lambda p: garch_weekly(p, True, garch_fits(p, True)[1]),
+            "M4": lambda p: har_weekly(p, False)[0],
+            "M5": lambda p: har_weekly(p, True)[0],
+            "M6": lambda p: har_weekly(p, down, x(p))[0],
+            "M7": lambda p: boost_weekly(p, down, x(p))[0],
+        }
+        for name, f in fs.items():
+            if getattr(f, "__name__", "") == "<lambda>":
+                f.__name__ = f"{name}_weekly"
+        return fs
     x = lambda p: exog(panel, p)
     fs = {
         "M0": filters.rolling,

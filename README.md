@@ -186,3 +186,58 @@ res = sc.run(specs["paper"]["book"], specs["paper"]["fs"]["M3"], specs["paper"][
 ```bash
 python -m src.models.build      # fill the forecast cache in parallel (about an hour on 10 cores the first time), run the placebos, write reports/phase6_*.csv
 ```
+
+
+## Phase 7: Walk-forward evaluation
+
+The strategy run as it would have run in real time, then tested honestly (`src/walkforward/`, report `reports/phase7_evaluation.ipynb`, rules in PREREGISTRATION Entry 6, outcome in Entry 7). Development sample only.
+
+At every rebalance, using only data up to that close, the walk-forward does five things:
+- re-screens all seven factors (at each year-end; filters 1, 3 and 6, level φ);
+- rebuilds the mix (Phase 4);
+- refits and forecasts (Phase 6's models);
+- sets c_t and the size (cap 1.5);
+- trades at that close.
+
+A year whose screen admits nothing, or whose mix has no c_t yet, holds cash and is not scored. So the primary book scores 276 months: the market alone in 1984, then mixes of market, BAB, profitability and (from 2010) momentum over 1997–2018.
+
+- **The primary test** stands alone, because it was fixed before the data: M3 GJR-GARCH, inverse-variance timing, inverse-volatility mix, monthly. Its statistic is Entry 3's Sharpe gain, by Ledoit-Wolf with a Newey-West covariance. It is reported with the CER gain (block bootstrap) and Cederburg et al.'s real-time combination test.
+- **The family** is 8 forecasts × 3 timing rules × 4 mixes × 2 rebalancing frequencies (monthly, weekly) = 192 variants. It is read through Romano-Wolf stepdown and Holm-Bonferroni adjusted p-values, plus the deflated Sharpe ratio of the best variant. All bootstraps are stationary, with mean blocks of 6 and 12 months, and report the larger p-value.
+- **The ETF track** re-runs the frozen choices on what can be traded, after costs: SPY alone with M2, and SPY plus MTUM's hedged tilt with M3.
+
+Results (development sample; the paper book is an upper bound):
+
+| | Sharpe, timed / buy-and-hold | Gain (p) | Reading |
+|---|---|---|---|
+| **Primary**, 276 months | 0.746 / 0.733 | +0.013 (0.47) | **inconclusive** (minimum detectable effect 0.45) |
+| Family of 192 | median gain +0.09 | 1 raw p < 5%; **0** after Romano-Wolf or Holm | best variant's deflated Sharpe ratio 0.67 (bar 0.95) |
+| Q3: models against M0 (168 tests) | median gains −0.01 to −0.03 | 0 after Romano-Wolf | no forecast beats rolling RV |
+| Q4: accuracy against value | rank correlation −0.05 | — | accuracy is not the bottleneck |
+| ETF track: SPY alone, after costs, 1997–2018 | 0.582 / 0.417 | +0.165 (0.13) | inconclusive |
+| Phase 6's fixed book (full-sample assets) | 1.567 / 1.211 | +0.355 (0.0002) | edge |
+
+- **The primary also loses on CER** (3.5% against 4.1%) and fails the placebo (86% against the 95% bar). Its combination test is positive but not significant: +0.85 points, p 0.09.
+- **What timing does reliably here** is cut drawdowns, in all 192 variants (−19% against −34% for the primary), by running at lower volatility.
+- **One year decides the verdict** (information, added after the run).
+  - In 1984 the book is the market alone, at 19% volatility against 2–9% for the mixes that follow. It lost.
+  - Over 1997–2018 alone the primary gains +0.30 (p 0.012), and 65 of 192 variants survive Romano-Wolf.
+  - Phase 6's fixed book gains +0.61 on the same 276 months, so the asset list, not the years, removed Phase 6's edge.
+  - How to score a one-asset year in the holdout is an open decision (Entry 7, item 9).
+
+```python
+from src.data.load import load_dev, load_etf_ohlc_dev
+from src import models as md
+from src.engine import execution
+from src.walkforward import runs, screened
+
+panel, ohlc = load_dev(), load_etf_ohlc_dev()
+rec = screened.recipes(panel, screened.survivors(screened.screen_all(panel, ohlc, jobs=-2)))
+book = screened.book(panel, rec, "inv_vol", freq="M")          # "W-FRI" for the weekly variants
+periods = execution.holding_periods(book)
+res = runs.run(runs.prepare(book, md.forecasters(panel, False)["M3"]), 1.0, periods)   # the primary
+runs.metrics(res, periods)                                     # Sharpe, CER, Sortino, drawdown, turnover, break-even, the primary test
+```
+
+```bash
+python -m src.walkforward.build      # about 35 minutes on 10 cores the first time (weekly forecasts); a minute once cached
+```

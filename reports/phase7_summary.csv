@@ -1,0 +1,24 @@
+,value
+common_months,276
+common_first,1984-01
+common_last,2018-12
+variants,192
+edge_raw,1
+edge_rw,0
+edge_holm,0
+q3_beats_m0_rw,0
+q3_tests,168
+best_variant,M0 | down_vol | shrunk_mv | weekly
+dsr_sharpe_monthly,0.2830699703813557
+dsr_bh_sharpe_monthly,0.21549798389364766
+dsr_threshold_monthly,0.2577981241341596
+dsr_expected_max,2.752152648125415
+dsr_trials,192
+dsr_skew,0.4314630808139385
+dsr_kurtosis,5.400961180701381
+dsr_months,276
+dsr_dsr,0.6650887970288025
+q4_rank_corr_primary_cell,-0.04761904761904763
+q4_rank_corr_median_gain,-0.07142857142857144
+placebo_alpha,0.008072313067777856
+placebo_share,0.863
