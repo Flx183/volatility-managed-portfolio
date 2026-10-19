@@ -245,7 +245,7 @@ python -m src.walkforward.build      # about 35 minutes on 10 cores the first ti
 
 ## Phase 8: Robustness checks
 
-Is the result sturdy or fragile? Each check changes one thing from the chosen specification, and every outcome is recorded (`src/robustness/`, report `reports/phase8_robustness.ipynb`, rules in PREREGISTRATION Entry 8, outcome in Entry 9). Development sample only. No check replaces the primary test: they map how the result moves.
+Is the result sturdy or fragile? Each check changes one thing from the chosen specification, and every outcome is recorded (`src/robustness/`, report `reports/phase8_robustness.ipynb`, rules in PREREGISTRATION Entry 8, outcome in Entry 9, code-review fixes and re-run in Entry 12). Development sample only. No check replaces the primary test: they map how the result moves.
 
 Every check runs on three bases:
 - **the primary:** Phase 7's screened book, all 276 months;
@@ -279,6 +279,12 @@ Each check gets one verdict against its base: **holds** (same reading throughout
   - The market timed alone missed most rebounds (+44% against +180% after 1932).
   - The mixes and momentum did not, because their rebound was a momentum crash. Momentum lost 46% in March–May 2009; the frozen rule, at a size of 0.06, lost 2%.
 
+**Code review and re-run (PREREGISTRATION Entry 12, after the results).**
+- **What the review found.** Fifteen findings. Only one changed a reported number: weekly rows were scored by each week's closing month, not by calendar month. They are now booked day by day (`src/robustness/ledger.py`), and the weekly gains moved by −0.01 to +0.02 with no reading changed.
+- **No stale cache.** Every forecast cache was rebuilt from scratch and diffed: 1,978 entries, all identical. Phases 6 and 7 reproduce exactly.
+- **The change in gain is now split in two.** The spec effect is measured against the base on the same months, with a paired bootstrap interval; the sample effect is what the months lost do. Dropping the market from the primary: +0.36 = +0.29 from losing 1984 + 0.07 (−0.17 to +0.31) from the change itself.
+- **Frozen.** Rule tables are read-only and pinned by fingerprint to each phase's commit (`test/test_frozen_rules.py`), and `requirement.txt` pins the library versions.
+
 **Decided before the holdout (PREREGISTRATION Entries 10–11, the user's calls).**
 - **Holding years of unequal risk.** In the holdout, each holding year's monthly excess returns, timed and buy-and-hold alike, are scaled by 1/σ̂_y, where σ̂_y is buy-and-hold's volatility over that year's 10-year recipe window, known at the year-end. This option (c) decides the reading, and the pre-registered unscaled test (a) is reported beside it.
 - **The holdout's book.** The final test continues the real-time screen; Entry 6 supersedes Entry 1's fixed asset list.
@@ -288,12 +294,15 @@ Each check gets one verdict against its base: **holds** (same reading throughout
 from src.data.load import load_dev
 from src.engine.data import DAY
 from src.robustness import checks, crises
-from src.walkforward import runs
 
 panel = load_dev()
 rec = checks.recipes(panel, "fixed")                          # or "screened" with the survivors; drop="bab" leaves one out
-book, res, periods = checks.run(panel, rec, {"freq": DAY})    # one change: freq, window, max_size, rule, order or kappa
-runs.metrics(res, periods, checks.whole_months(book, res))    # the robustness row
+spec = checks.variation(checks.BASE, freq=DAY)               # exactly one change: order, rule, window, freq, cap, costs
+book, res, periods = checks.run(panel, rec, spec)             # checks.resolve(spec) supplies every rule the run reads
+base = checks.scored(*checks.run(panel, rec, checks.BASE))    # calendar-month returns, from the daily ledger
+months = base.index.intersection(checks.whole_months(book, res))
+checks.row(book, res, periods, months)                        # the robustness row
+checks.effects(base.loc[months], checks.scored(book, res, periods, months), base)   # spec and sample effects
 crises.questions(crises.path(book, res, periods), crises.span(panel, "2007", "2009"))   # the crisis questions
 ```
 

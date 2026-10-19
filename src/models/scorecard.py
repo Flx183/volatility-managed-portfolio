@@ -28,10 +28,11 @@ import pandas as pd
 from src import engine as e
 from src import portfolio as pf
 from src.engine import evaluation as ev
+from src.frozen import freeze
 from src.models import ORDER
 from src.models.inputs import qlike, target
 
-SCORE_RULES = {
+SCORE_RULES = freeze({
     "rule": "inv_var",      # the primary specification: inverse-variance timing ...
     "max_size": 1.5,        # ... capped at 1.5, monthly, costs of each track (Entry 2), real-time c_t
     "mcs_level": 0.10,      # the MCS keeps every model with an MCS p-value of at least 10% (a 90% set)
@@ -39,7 +40,7 @@ SCORE_RULES = {
     "mcs_reps": 10_000,
     "seed": 0,
     "gamma": 5,             # risk aversion of the CER
-}
+})
 # The SPY reference is chosen on the market factor, SPY's long-history stand-in: ETFs are never tuned
 # on. It pays SPY's costs (Entry 2): 5 bp a trade, borrowed cash at rf + 0.5% a year.
 SPY_COSTS = e.Costs(kappa={"mkt": 5e-4}, borrow_spread=0.005)

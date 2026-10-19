@@ -32,13 +32,14 @@ import pandas as pd
 from sklearn.covariance import LedoitWolf
 
 from src import variance as v
+from src.frozen import freeze
 from src.screen import SCREEN_RULES, year_ends
 
 # ---------------------------------------------------------------- rules
 # Fixed before any Phase 4 result was looked at, except two dated changes to Step 1 (see dedupe),
 # both made on 2026-10-17 after the first run and neither changing a result. Tests 1 and 4 use
 # the Phase 2 thresholds in variance.RULES; Test 1 gates on level phi, log phi is reported beside it.
-PORTFOLIO_RULES = {
+PORTFOLIO_RULES = freeze({
     "max_corr": 0.7,          # Step 1: a pair whose monthly ρ is above +0.7 is a duplicate ...
     "crisis_share": 0.10,     #   ... on all months, or on the 10% of months with the highest market RV,
                               #   judged only on min_months common months
@@ -48,7 +49,7 @@ PORTFOLIO_RULES = {
     "etf_min_months": 12,     # ETF track: one year before the first recipe (Phase 3's etf_min_days = 252)
     "max_size": 1.5,          # Step 3: serving size capped at 1.5x in the primary test (set in the plan);
                               #   Phase 8 re-runs with 1.0, 2.0 and no cap
-}
+})
 # The pass rule: Tests 1 and 4 both pass on p of the primary track and mix. Every other
 # track and mix is reported, not judged. If the primary fails, it stays the primary.
 # The primary includes paper BAB, which cannot be traded, so its results are an upper bound.
@@ -58,11 +59,11 @@ PRIMARY = ("paper", "inv_vol")
 # that pass every factor filter; betting-against-beta has no tradeable ETF, so "etf" is the
 # tradeable version (SPY and MTUM's market-hedged tilt) and "paper_no_bab" its long-history twin.
 # A hedged asset is traded as its tilt: hedge {"mtum": "spy"} means mtum - beta x spy.
-TRACKS = {
+TRACKS = freeze({
     "paper": {"assets": ["mkt", "mom", "bab"], "hedge": {}, "min_months": PORTFOLIO_RULES["min_months"]},
     "paper_no_bab": {"assets": ["mkt", "mom"], "hedge": {}, "min_months": PORTFOLIO_RULES["min_months"]},
     "etf": {"assets": ["spy", "mtum"], "hedge": {"mtum": "spy"}, "min_months": PORTFOLIO_RULES["etf_min_months"]},
-}
+})
 METHODS = ["equal", "inv_var", "inv_vol", "shrunk_mv"]
 
 

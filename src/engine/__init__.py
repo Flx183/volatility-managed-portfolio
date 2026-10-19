@@ -30,14 +30,15 @@ import numpy as np
 import pandas as pd
 
 from src.engine import data, evaluation, execution, forecast, weights
-from src.engine.data import Book
+from src.engine.data import DAY, Book
 from src.engine.execution import COSTS, NO_COSTS, Costs
+from src.frozen import freeze
 
 # ---------------------------------------------------------------- rules
 # Fixed on 2026-10-18 from the research plan, before any real-data result under them (PREREGISTRATION
 # Entry 2; the ETF track's 36 months, Entry 3). Phase 4's 1.5 cap carries over; Phase 4's c (a 10-year
 # window, set once a year) is replaced by the real-time c_t below.
-ENGINE_RULES = {
+ENGINE_RULES = freeze({
     "rule": "inv_var",        # the primary timing rule: size = c_t / σ̂², the papers' baseline
     "max_size": 1.5,          # 0 <= size <= 1.5 in the primary test; Phase 8 tries 1.0 and 2.0
     "min_months": 120,        # c_t needs 120 (signal, next-month return) pairs ...
@@ -48,14 +49,14 @@ ENGINE_RULES = {
     "target_vol": 0.12,       # Barroso and Santa-Clara's fixed annual target: only to replicate them
     "placebo_draws": 1000,    # shuffled forecasts ...
     "placebo_share": 0.95,    # ... and the real alpha must beat 95% of their alphas
-}
+})
 # Timing rule -> (forecaster, power): size = c_t x forecast^(-power). If volatility doubles, the size
 # falls to 1/4 (power 1), 1/2 (power 0.5), or reacts only to bad days (downside variance).
-TIMING = {
+TIMING = freeze({
     "inv_var": (forecast.last_rv, 1.0),          # Moreira and Muir (2017)
     "inv_vol": (forecast.last_rv, 0.5),          # Barroso and Santa-Clara (2015)
     "down_vol": (forecast.last_rv_down, 0.5),    # Wang and Yan (2021)
-}
+})
 
 
 # ---------------------------------------------------------------- the pipeline
@@ -66,13 +67,19 @@ class NoSize(ValueError):
 
 def prepare(book: Book, forecaster) -> dict[int, pd.DataFrame]:
     """Stages 1 and 2. For each distinct recipe: the per-period table of the mix it holds, over all
-    history, with the forecast made at the end of each period."""
+    history, with the forecast made at the end of each period. A daily table's index is the recipe's
+    trading calendar, the days every asset it holds has a return; its forecast must cover every one of
+    them from its first."""
     ids = data.recipe_ids(book.positions)
     out = {}
     for k in ids.unique():
         pos = book.positions.loc[ids == k].iloc[0]
         p = data.mix(book, pos)
-        out[k] = data.table(p, book.rf, book.freq).join(forecaster(p).rename("forecast"), how="left")
+        tab, f = data.table(p, book.rf, book.freq), forecaster(p).rename("forecast")
+        if book.freq == DAY and len(f) and not f.index.equals(tab.index[tab.index.searchsorted(f.index[0]):]):
+            raise ValueError(f"recipe {k}: a daily forecast must cover its mix's calendar from its first day "
+                             f"({f.index[0]}) without a gap")
+        out[k] = tab.join(f, how="left")
     return out
 
 
@@ -81,7 +88,9 @@ def decide(book: Book, prepared: dict[int, pd.DataFrame], power: float, c="realt
            c_window: int | None = ENGINE_RULES["c_window"], seed: int | None = None) -> pd.DataFrame:
     """Stage 3. One row per holding month m: the forecast, signal, c and size, all made at the end
     of month m-1 from the recipe held in m. seed: shuffle each recipe's forecast in time (placebo).
-    Months before the first size are dropped; a missing size after it is an error."""
+    Months before the first size are dropped; a missing size after it is an error. A daily book steps
+    along each recipe's own calendar (prepare's), the one its c_t pairs on: the period before a day is
+    the recipe's trading day before it, and a day it is held without a return for every asset is an error."""
     ids = data.recipe_ids(book.positions)
     rows = []
     for k, mon in prepared.items():
@@ -89,7 +98,13 @@ def decide(book: Book, prepared: dict[int, pd.DataFrame], power: float, c="realt
         s = weights.signal(f, power)
         ck = weights.realtime_c(mon["ret"], s, min_months, c_window) if c == "realtime" else pd.Series(float(c), s.index)
         held = ids.index[ids == k]
-        t = data.shift(held, -1, book.calendar)                 # decided at the end of the period before
+        calendar = None
+        if book.freq == DAY:
+            calendar = mon.index
+            off = ~held.isin(calendar)
+            if off.any():
+                raise ValueError(f"recipe {k} is held on {held[off][0]}, a day its assets have no return")
+        t = data.shift(held, -1, calendar)                       # decided at the end of the period before
         rows.append(pd.DataFrame({"recipe": k, "forecast": f.reindex(t).to_numpy(), "signal": s.reindex(t).to_numpy(),
                                   "c": ck.reindex(t).to_numpy()}, index=held))
     dec = pd.concat(rows).sort_index()

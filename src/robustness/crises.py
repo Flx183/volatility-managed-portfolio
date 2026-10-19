@@ -32,17 +32,18 @@ import pandas as pd
 from src import engine as e
 from src import models as md
 from src.engine import execution, forecast, weights
-from src.robustness import ROBUST_RULES
+from src.frozen import freeze
+from src.robustness import ROBUST_RULES, ledger
 from src.walkforward import runs
 
 # Episode -> (the year the market's peak is searched in, the last year its trough is searched in).
 # The plan's "2008 to 2009" crisis began at the market's October 2007 peak, so its peak is searched in 2007.
-EPISODES = {"1929-1932": ("1929", "1932"), "October 1987": ("1987", "1987"),
-            "2000-2002": ("2000", "2002"), "2008-2009": ("2007", "2009")}
+EPISODES = freeze({"1929-1932": ("1929", "1932"), "October 1987": ("1987", "1987"),
+                   "2000-2002": ("2000", "2002"), "2008-2009": ("2007", "2009")})
 # Momentum's two worst stretches in Barroso and Santa-Clara (2015), for their decile spread WML. French's
 # momentum factor (UMD) is a different portfolio, so its losses are not the same numbers.
-MOMENTUM_CRASHES = {"July-August 1932": ("1932-07", "1932-08", -0.9159), "March-May 2009": ("2009-03", "2009-05", -0.7342)}
-BSC = {"days": 126, "target": e.ENGINE_RULES["target_vol"]}     # 126-day variance, 12% a year, no cap
+MOMENTUM_CRASHES = freeze({"July-August 1932": ("1932-07", "1932-08", -0.9159), "March-May 2009": ("2009-03", "2009-05", -0.7342)})
+BSC = freeze({"days": 126, "target": e.ENGINE_RULES["target_vol"]})     # 126-day variance, 12% a year, no cap
 
 
 def span(panel: pd.DataFrame, first: str, last: str) -> dict:
@@ -61,32 +62,19 @@ def path(book: e.Book, res: pd.DataFrame, periods: execution.Periods) -> pd.Data
     """Every trading day of the run's holding periods: value and bench_value (the timed and buy-and-hold
     accounts relative to cash, so 1.10 means 10% ahead of cash since the first day), ret and bench_ret
     (their daily returns relative to cash), and the size and forecast set at the period's opening trade.
-    Inside a period the positions drift as execution.simulate's do, and each period's last day compounds
-    to the engine's 1 + net."""
-    x, rf = book.returns, book.rf.reindex(book.returns.index)
-    labels = pd.Series(execution.period_labels(x.index, 0, book.freq), index=x.index)
-    labels = labels[labels.isin(res.index)]
-    cols = [c[2:] for c in res.columns if c.startswith("w_")]
-    X, R = x.loc[labels.index, cols], rf.loc[labels.index]
-    fee = pd.Series(periods.costs.short_fee, dtype=float).reindex(cols).fillna(0.0) / execution.DAYS_PER_YEAR
-    borrow = periods.costs.borrow_spread / execution.DAYS_PER_YEAR
-    g = labels.to_numpy()
-    grow = lambda daily: np.exp(np.log(daily).groupby(g).cumsum())          # growth since the period's opening trade
-    cash = grow(1 + R)
+    Inside a period the positions drift as execution.simulate's do (the daily ledger), and each period's
+    last day compounds to the engine's 1 + net."""
+    d = ledger.days(book, res, periods)
+    g = d["period"].to_numpy()
     out = {}
     for pre in ("", "bench_"):
-        W = res.loc[g, [f"{pre}w_{c}" for c in cols]].set_axis(cols, axis=1).set_axis(labels.index)
-        held = grow(X.add(R, axis=0) + 1).where(W >= 0, grow(X.add(R, axis=0) + 1 + fee))
-        left = 1 - W.sum(axis=1)
-        cash_held = cash.where(left >= 0, grow(1 + R + borrow))
-        inside = (W * held).sum(axis=1) + left * cash_held
         opening = (1 + res[f"{pre}net"]).cumprod().shift(1, fill_value=1.0)    # account value at each opening trade
-        value = opening.loc[g].to_numpy() * (1 - res.loc[g, f"{pre}trading"].to_numpy()) * inside
-        rel = value / np.cumprod(1 + R)
+        value = opening.loc[g].to_numpy() * (1 - res.loc[g, f"{pre}trading"].to_numpy()) * d[f"{pre}value"]
+        rel = value / np.cumprod(1 + book.rf.reindex(d.index))
         out[f"{pre}value"], out[f"{pre}ret"] = rel, rel / rel.shift(1, fill_value=1.0) - 1
     out["size"] = res.loc[g, "size"].to_numpy()
     out["forecast"] = res.loc[g, "forecast"].to_numpy() if "forecast" in res else np.nan
-    return pd.DataFrame(out, index=labels.index)
+    return pd.DataFrame(out, index=d.index)
 
 
 def covers(p: pd.DataFrame, s: dict, calendar: pd.DatetimeIndex) -> bool:

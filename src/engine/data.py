@@ -55,8 +55,10 @@ class Book:
             raise ValueError("positions contain NaN")
         if self.rf.reindex(self.returns.index).isna().any():
             raise ValueError("the risk-free rate is missing on some trading days")
-        if self.freq == DAY and not self.positions.index.isin(self.calendar).all():
-            raise ValueError("a daily book holds positions only on trading days")
+        if self.freq == DAY:                                  # built once (frozen: hence object.__setattr__)
+            object.__setattr__(self, "_calendar", self.returns.index.to_period(DAY))
+            if not self.positions.index.isin(self._calendar).all():
+                raise ValueError("a daily book holds positions only on trading days")
 
     @property
     def freq(self) -> str:
@@ -65,8 +67,11 @@ class Book:
 
     @property
     def calendar(self) -> pd.PeriodIndex:
-        """The trading days of the returns, as daily periods: what a daily book steps along."""
-        return self.returns.index.to_period(DAY)
+        """The trading days of the returns, as daily periods: what a daily book steps along. Only a daily
+        book has one; months and weeks step by period arithmetic."""
+        if self.freq != DAY:
+            raise ValueError("only a daily book has a trading calendar")
+        return self._calendar
 
     @classmethod
     def single(cls, x: pd.Series, rf: pd.Series, name: str = "asset", freq: str = MONTH) -> "Book":

@@ -23,17 +23,18 @@ from __future__ import annotations
 
 from src import portfolio as pf
 from src.engine.data import MONTH, WEEK
+from src.frozen import freeze
 from src.models import ORDER
 from src.walkforward import stats, screened, runs, tracks     # stats first: runs imports it
 
-FREQS = {"monthly": MONTH, "weekly": WEEK}
-FAMILY = {"model": ORDER, "rule": ["inv_var", "inv_vol", "down_vol"], "mix": pf.METHODS, "freq": list(FREQS)}
+FREQS = freeze({"monthly": MONTH, "weekly": WEEK})
+FAMILY = freeze({"model": ORDER, "rule": ["inv_var", "inv_vol", "down_vol"], "mix": pf.METHODS, "freq": list(FREQS)})
 PRIMARY = ("M3", "inv_var", "inv_vol", "monthly")
 # Timing rule -> (power, downside): size = c_t x forecast^(-power); downside rules forecast σ̂⁻² (runs.downside).
-RULES = {"inv_var": (1.0, False), "inv_vol": (0.5, False), "down_vol": (0.5, True)}
+RULES = freeze({"inv_var": (1.0, False), "inv_vol": (0.5, False), "down_vol": (0.5, True)})
 
 # Fixed on 2026-10-19 before any walk-forward result (PREREGISTRATION Entry 6).
-WF_RULES = {
+WF_RULES = freeze({
     "screen": "all seven factors at every year-end; filters 1, 3, 6 (level φ), 120 months",
     "empty": "no survivors, or no c_t yet: cash, and the period is not scored",
     "flip_flops": "no rule: hold what passes at each year-end",
@@ -46,7 +47,7 @@ WF_RULES = {
     "bootstrap": stats.BOOT,                          # stationary, mean blocks 6 and 12: the larger p is reported
     "combination": stats.COMBINATION,
     "down_days": runs.DOWN_DAYS,
-}
+})
 
 
 def variant_name(v: tuple) -> str:

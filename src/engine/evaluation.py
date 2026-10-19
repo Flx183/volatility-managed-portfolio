@@ -31,14 +31,15 @@ from scipy.optimize import brentq
 from scipy.stats import norm
 
 from src import variance as v
+from src.frozen import freeze
 
 # The primary test (PREREGISTRATION Entry 3), fixed before any real-data result under it.
-TEST_RULES = {
+TEST_RULES = freeze({
     "level": 0.05,             # one-sided: H0 is "timing does not raise the Sharpe ratio"
     "meaningful_gain": 0.10,   # Sharpe a year: an upper 95% bound below this reads "no meaningful edge"
     "power": 0.80,             # the minimum detectable effect is reported at this power
     "lags": v.NW_MONTHLY,      # Newey-West lags of the HAC covariance (monthly returns)
-}
+})
 
 
 def sharpe(excess: pd.Series) -> float:

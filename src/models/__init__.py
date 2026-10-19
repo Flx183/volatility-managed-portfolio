@@ -45,12 +45,13 @@ import pandas as pd
 from src import variance as v
 from src.engine import forecast as engine_forecast
 from src.engine.data import DAY, MONTH, WEEK
+from src.frozen import freeze
 from src.models import boost, filters, har, inputs, variations, weekly
 from src.models.inputs import schedule
 
 # ---------------------------------------------------------------- rules
 # Fixed on 2026-10-18 before any real-data forecast was scored (PREREGISTRATION Entry 4).
-MODEL_RULES = {
+MODEL_RULES = freeze({
     "horizon": inputs.H,                  # trading days: one holding month
     "min_months": inputs.MIN_MONTHS,      # first forecast at the end of the mix's 120th month, every model
     "embargo": inputs.H,                  # direct models drop the last 22 days of training targets
@@ -60,7 +61,7 @@ MODEL_RULES = {
     "log_floor": inputs.FLOOR,            # a day's r² is floored at 1/1000 of its 22-day mean in logs
     "x_min_months": inputs.X_MIN_MONTHS,  # VIX and event counts enter once they have 60 months of history
     "m6_base": "M5 if Phase 2 Test 3 passes on the series forecast, else M4",
-}
+})
 ORDER = ["M0", "M1", "M2", "M3", "M4", "M5", "M6", "M7"]   # simplest first: the selection rule's order
 NAMES = {"M0": "Rolling RV", "M1": "EWMA", "M2": "GARCH(1,1)", "M3": "GJR-GARCH", "M4": "HAR (log)",
          "M5": "Downside HAR", "M6": "HAR-X", "M7": "Gradient boosting"}

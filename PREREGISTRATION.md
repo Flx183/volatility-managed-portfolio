@@ -957,3 +957,113 @@ Section 3 was added after the results had been seen. It is labelled as such and 
 - **Under (c), 1984 is no longer the timed run's largest year; 1997 is (19%).** 1984 still carries about three times an equal share (4%). (c) scales by buy-and-hold's ex-ante risk, and in 1984 the timed run itself levered to 1.5: that is the timing's own decision, which (c) is not meant to neutralize.
 - **(c) equalizes ex-ante risk, not realized risk.** 2000 and 2001 (realized buy-and-hold volatility 13–14%, against σ̂ of 4.9%) carry 17–19% of buy-and-hold's variance under (c).
 - **(c)'s standard error (0.137) is close to the 1997–2018 cut's (0.134),** as Entry 10's diagnosis implies.
+
+---
+
+## Entry 12 — 2026-10-19: code-review fixes to Phase 8, the re-run from a rebuilt cache, and the freeze before Phase 9
+
+**Status.** Written after Phase 8's results (Entry 9) had been seen, following a code review of the Phase 8 code (15 findings). No rule of Entries 1–11 is changed. The changes fall into three kinds, kept apart below:
+- **bug fixes:** the code did not do what a written rule said;
+- **clarifications:** a rule the entries did not state, now stated;
+- **additions after the results:** information only.
+
+The state before any change is tagged `phase8-prereview` (commit 99867ee). Each finding has a test that reproduces it (`test/test_review_fixes.py`, `test/test_frozen_rules.py`). Every such test fails on the tagged code and passes on the fixed code. The pinned fingerprints of tables that never moved pass on both, as they should.
+
+### 1. Bug fixes: the code did not do what the written rule said
+
+| Finding | What was wrong | Rule it broke | Effect on reported results |
+|---|---|---|---|
+| 13 | Phase 8 added a daily entry to `runs.MIN_PAIRS`, which `WF_RULES["min_pairs"]` points to, so Phase 7's frozen table was edited. Entry 8's `daily_min_pairs` was never read: the 2,520 was typed again | Entry 6 (a frozen table); Entry 8 (daily c_t from `daily_min_pairs`) | **None.** Phase 7 has no daily run, and the typed number equalled the registered one |
+| 4 | Weekly runs gave each week to the month of its closing trade (Phase 7's rule). So a "whole" calendar month was scored on days shifted by up to four trading days | Entry 8: weekly and daily runs "are scored on calendar months" | **The three weekly rows** (Section 5). No reading or verdict changed |
+| 8 | A gain of exactly 0, or a base gain of 0, was called a flip | Entry 8: "flips: some variation's gain has the opposite sign". 0 has no sign | **None:** no gain is exactly 0 |
+| 2 | Time-each always used power 1 and an expanding c_t, whatever else the run changed | Entry 8: one change at a time | **None.** No registered row combines time-each with another change; the order rows use inverse variance and an expanding window. The code path was unsafe |
+| 1 | The downside rule read weekly origins for a daily book, so every daily downside forecast was missing | Entry 6's downside rule | **None:** no registered row runs the downside rule daily |
+| 6 | An asset with no decision yet counted as capped | — | **None:** a mask hid it |
+| 5 | A daily book's c_t paired days on the mix's calendar, while its decisions stepped along the panel's | — | **None:** on development there are 0 days where a held asset lacks a return the panel has |
+| 9, 10 | A crash in place of a clear message | — | **None** |
+
+**The fixes.**
+- **13.** Phase 7's table is restored. Phase 8 builds its own beside it (`checks.MIN_PAIRS`, daily from `ROBUST_RULES`) and passes every rule to the engine from the specification (`checks.resolve`). Phase 7's `runs.run` keeps Entry 6's defaults and refuses a daily book without an explicit minimum.
+- **4.** Every Phase 8 run is booked day by day, positions drifting between trades, and each day's return goes to its own calendar month (`src/robustness/ledger.py`). For a monthly book this reproduces the engine's monthly returns bit for bit (tested, and true of every monthly row below). Phase 7's tables keep Phase 7's rule, as Entry 6 registered.
+- **8.** Flips compare signs strictly.
+- **2.** One specification object (`checks.Spec`) holds all of a run's choices and refuses a second change.
+- **1.** Every frequency maps to its own origins, an unknown one is refused, and the forecast's periods must be the origins'.
+- **6.** "Capped" is false where an asset has no decision.
+- **5.** See Section 2.
+- **9, 10.** Guard clauses.
+
+### 2. Clarifications: rules the entries did not state (the user's calls, 2026-10-19)
+
+- **The change in gain is measured on the same months (finding 7).** Before, the table's `change_in_gain` compared a variation's gain on its months with the base's gain on all of the base's months, so a change that lost months mixed two effects. It is replaced by two numbers that add up to it:
+  - the **spec effect:** the variation's gain minus the base's gain, on the months both score;
+  - the **sample effect:** the base's gain on those months minus its gain on all of its months.
+- **Time each, then combine: an asset too short for its c_t (finding 3).** It has no size anywhere. Every period that holds it is cash and not scored, and a segment where no period has a size for every held asset is cash, as Entry 6's "no c_t yet" rule treats the combined mix. On development both orders score the same months. The code used to stop with an error instead.
+- **The month of a period's trading cost and turnover (with finding 4)** *(my choice)*. The cost of the trade that opens a period is paid on the period's first day, and the period's turnover, size and capping count in that day's month. For monthly and daily books this is the month they always had.
+- **One trading calendar per recipe for daily books (finding 5)** *(my choice of detail)*.
+  - A recipe's calendar is the set of days on which every asset it holds has a return. Its c_t pairs on that calendar, and its decision for a day is made at the close of that calendar's previous day. Its daily forecast must cover every day of that calendar from its first.
+  - The calendar is set per recipe, not per segment, because each recipe's c_t back-casts over its own mix's history, which a segment-wide calendar would cut.
+  - A daily book held on a day its assets have no return now stops, naming the day. On development there is no such day.
+
+### 3. Added after the results (information)
+
+- **The spec effect's interval.** A paired stationary bootstrap draws the months for both runs together, so their common noise cancels. Phase 7's 10,000 draws (seed 0), mean blocks of 6 and 12 months, the larger standard error kept, and the interval spec ± 1.96 se *(my choices)*. Per check, `phase8_checks.csv` counts the intervals wholly above and wholly below 0.
+- **Entry 8's verdicts are kept as registered, beside the intervals.** The user asked for the sign verdicts to be replaced by the spec effect and its interval, because with a base gain of +0.013 (standard error 0.180) the primary's sign is noise. Since Entry 8's verdict is a registered reading and the results had been seen, it stays in the tables; the interval is reported next to it *(my choice; the user may drop the verdict column)*. Entry 9's verdicts are unchanged.
+
+### 4. Speed and duplication (findings 11, 12, 14, 15)
+
+- **11.** A daily book builds its trading calendar once. A monthly or weekly decision never builds it. Phase 9's placebo runs 1,000 decisions per recipe.
+- **12.** The crisis tables build each run's daily path and monthly returns once, not once per episode.
+- **14.** Phase 7's placebo (`walkforward.build.placebo`) now also returns its draws, and Phase 8 reads them instead of running its own copy. A test confirms the alphas are bit-identical to Phase 7's computation, and Phase 7's placebo table and draws are unchanged (Section 5).
+- **15, the cache.** It was rebuilt from scratch and diffed (Section 5); no stale entry was found.
+  - The code side is deferred until after the holdout, because Phase 9 runs no rolling-window GARCH. Two things remain: the cache key is the hash of whole files, and `variations.garch_fits_window` copies `filters.garch_fits`'s loop to keep that key stable.
+  - The key does not include library versions. So `requirement.txt` is now pinned, and an upgrade needs a fresh cache.
+
+### 5. The re-run
+
+**The cache, rebuilt from scratch.** Phase 7's build, Phase 8's build and Phase 6's forecast fill were run with the tagged code on an empty cache.
+- **1,978 entries were rebuilt, and every one is bit-identical to the same call in the old cache.**
+- **30 old entries were reached by no build** and were not rebuilt. They were single-asset walk-forwards of momentum, BAB and profitability from earlier analyses, and simulated test series.
+- **With the tagged code and the rebuilt cache, all 16 Phase 7 and Phase 8 tables equal the committed ones exactly.** So no reported number came from a stale cache.
+
+**The fixed code on the rebuilt cache.**
+- **Phase 6:** scorecards A and B and the selection reproduce to 4 × 10⁻¹⁶ (CSV rounding). The placebos were not rerun.
+- **Phase 7:** every table and data file is byte-identical.
+- **Phase 8: changes, each traced to a fix.**
+
+| Row | Gain before → after | One-sided p | Break-even | Reading | Fix |
+|---|---|---|---|---|---|
+| Primary, weekly | +0.096 → +0.097 | 0.304 → 0.294 | 7.0 → 7.3 bp | inconclusive | 4 |
+| Primary 1997–2018, weekly | +0.359 → +0.348 | 0.0052 → 0.0053 | 20.9 → 21.0 bp | edge | 4 |
+| Fixed book, weekly | +0.477 → +0.500 | 2.4 × 10⁻⁵ → 9.9 × 10⁻⁶ | 24.3 → 25.4 bp | edge | 4 |
+
+- **The daily rows** move by at most 10⁻¹², because their calendar months are now compounded through the ledger (4).
+- **The crisis answers** move by at most 10⁻¹⁴, because the daily path now runs on the ledger (4).
+- **The checks table:** `min_gain` of the two frequency checks whose minimum is the weekly row moves (4).
+- **Unchanged:**
+  - every monthly row, bit for bit;
+  - every verdict;
+  - the placebo, the crashes, the risk shares, the short-fee stress and option (c) (Entry 11).
+- **Columns:** `change_in_gain` is replaced by `spec_effect`, `spec_se`, `spec_lower`, `spec_upper`, `sample_effect` and `months_lost` (Sections 2–3).
+
+**What the split shows** (spec effect, 95% interval):
+
+| Change | Primary, 276 months | Primary, 1997–2018 | Fixed book |
+|---|---|---|---|
+| Drop the market | +0.07 (−0.17 to +0.31); sample effect **+0.29** (1984 lost) | +0.07 (−0.17 to +0.31) | **+0.23 (+0.04 to +0.41)** |
+| Drop BAB | −0.05 (−0.36 to +0.26) | −0.23 (−0.51 to +0.04) | **−0.17 (−0.32 to −0.02)** |
+| Daily rebalancing | **+0.17 (+0.05 to +0.28)** | +0.12 (−0.04 to +0.28) | **+0.31 (+0.14 to +0.48)** |
+| Cap 1.0 | +0.06 (−0.08 to +0.20) | **−0.065 (−0.12 to −0.005)** | **−0.07 (−0.13 to −0.01)** |
+| 30 bp a trade | **−0.14** | **−0.19** | **−0.17** |
+
+- **The primary's "edge" without the market is 1984's absence.** Its reported +0.36 change in gain is +0.29 from losing 1984 and +0.07 from the change itself, and the +0.07 is indistinguishable from 0.
+- **The primary's two "flips" differ.** The cost flip is a real, clearly negative effect. The leave-one-out flip (dropping BAB) is within noise.
+- **Most other changes move the gain by less than the paired noise can show.** Every cost row is clearly negative in every base.
+- **Entry 9's reading stands:** the fixed book is sturdy; the primary as registered is inconclusive and fragile in sign.
+
+### 6. The freeze before Phase 9
+
+- **Read-only rule tables.** Every frozen rule table outside the forecast-cache key files refuses writes (`src/frozen.py`). Tables inside those files are not wrapped, because any edit there voids every cached forecast.
+- **Pinned fingerprints.** Every registered table's fingerprint is pinned at the commit of the phase that fixed it (`test/test_frozen_rules.py`). The only table that had moved was finding 13's.
+- **`requirement.txt`** pins the versions that produced Phases 6–8 and the rebuilt cache (Python 3.12.1).
+- **The forecast caches are cleared.** Phase 9 starts from an empty cache.
+- **For Phase 9.** If a held factor lacks returns inside a holding period, for example because of AQR's publication lag at the end of the data, the monthly engine stops and names the month: `holding_periods` marks the period missing, and `simulate` refuses it. It does not score the month. This was already so; it is recorded here because recent data is where such gaps appear.

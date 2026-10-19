@@ -6,11 +6,14 @@ Phase 7, step 2: running a variant and measuring it
     run(prepared, power, periods)     stages 3-4 on each segment. A segment, or its first periods,
                                       without a c_t holds cash and is not scored; each segment starts
                                       from cash, so its first trade pays for the whole entry
-    downside(forecaster, freq)        the downside-volatility rule under any model
+    downside(forecaster, freq)        the downside-volatility rule under any model, at monthly, weekly or
+                                      daily origins
     month_of(res, periods)            the calendar month of each holding period (its closing trade)
     excess_months(res, periods)       monthly excess returns; a weekly run compounds its weeks
     metrics(res, periods)             Sharpe ratio, CER, Sortino, drawdown, turnover, break-even and
                                       the primary test, for the timed run and buy-and-hold
+    summarize(m, r, break_even)       the same from monthly returns and holding periods already chosen
+                                      (Phase 8 scores calendar months from its daily ledger)
     year_weighted(m, scale)           option (c) of Entry 10: each holding year's months scaled to an
                                       equal risk budget, both runs by the same number
 
@@ -27,12 +30,13 @@ from scipy.optimize import brentq
 from src import engine as e
 from src.engine import evaluation as ev, execution
 from src.engine.data import DAY, MONTH, WEEK
+from src.frozen import freeze
 from src.models import inputs, weekly
 from src.walkforward import stats
 
 GAMMA = 5                                 # risk aversion of every CER (Phase 6's)
-MIN_PAIRS = {MONTH: 120, WEEK: 520,      # c_t needs ten years of (signal, next-period return) pairs
-             DAY: 2520}                   # (daily: Phase 8's rebalancing check, 252 trading days a year)
+MIN_PAIRS = freeze({MONTH: 120, WEEK: 520})   # c_t needs ten years of (signal, next-period return) pairs.
+                                              # Daily books pass their own (Phase 8: robustness.checks.MIN_PAIRS)
 DOWN_DAYS = 22                            # downside rule: the down-day share of the last 22 days' Σ r²
 
 
@@ -57,9 +61,11 @@ def run(prepared: list[tuple[e.Book, dict]], power: float, periods: execution.Pe
     c_window: c_t from the last c_window pairs instead of all of them (Phase 8's rolling windows)."""
     parts = []
     for seg, prep in prepared:
+        n = min_pairs or MIN_PAIRS.get(seg.freq)
+        if n is None:
+            raise ValueError(f"Phase 7 fixed no c_t minimum for {seg.freq} books: pass min_pairs")
         try:
-            dec = e.decide(seg, prep, power, max_size=max_size, min_months=min_pairs or MIN_PAIRS[seg.freq], seed=seed,
-                           c_window=c_window)
+            dec = e.decide(seg, prep, power, max_size=max_size, min_months=n, seed=seed, c_window=c_window)
         except e.NoSize:                                     # no c_t anywhere in the segment: cash
             continue
         res = e.trade(seg, dec, periods)
@@ -79,15 +85,30 @@ def down_share(p: pd.Series, days: int = DOWN_DAYS) -> pd.Series:
     return share(days).where(dn.rolling(days).sum() >= 3, share(2 * days))
 
 
+def daily_origins(p: pd.Series) -> pd.Series:
+    """Position in p of every trading day, by day: a daily book's forecast origins."""
+    p = p.dropna()
+    return pd.Series(np.arange(len(p)), index=p.index.to_period(DAY))
+
+
+ORIGINS = {MONTH: inputs.origins, WEEK: weekly.origins, DAY: daily_origins}
+
+
 def downside(forecaster, freq: str = MONTH):
     """The downside-volatility rule under any model: σ̂⁻² = σ̂² x the down-day share of the last 22
-    days' Σ r² (44 days if the 22 hold fewer than three down days). Under M0 (monthly) this is the
-    downside RV of the last 22 days."""
+    days' Σ r² (44 days if the 22 hold fewer than three down days), read at the forecast's own origins.
+    Under M0 (monthly) this is the downside RV of the last 22 days."""
+    if freq not in ORIGINS:
+        raise ValueError(f"no forecast origins for frequency {freq!r}: monthly, weekly or daily")
+    origins = ORIGINS[freq]
+
     def f(p: pd.Series) -> pd.Series:
         fc = forecaster(p)
         p = p.dropna()
-        o = inputs.origins(p) if freq == MONTH else weekly.origins(p)
+        o = origins(p)
         share = pd.Series(down_share(p).to_numpy()[o.to_numpy()], index=o.index)
+        if not fc.index.isin(share.index).all():
+            raise ValueError(f"the forecast's periods are not the {freq} origins of its mix")
         return (fc * share.reindex(fc.index)).rename("forecast")
     f.__name__ = f"{getattr(forecaster, '__name__', 'forecast')}_down"
     return f
@@ -139,6 +160,12 @@ def break_even(res: pd.DataFrame, periods: execution.Periods, months: pd.PeriodI
         x = excess_months(res, periods, kappa=k).loc[months]
         b = excess_months(res, periods, "bench_", kappa=k).loc[months]
         return ev.sharpe(x) - ev.sharpe(b)
+    return solve_break_even(gap, hi)
+
+
+def solve_break_even(gap, hi: float = 0.5) -> float:
+    """The κ in [0, hi] where gap(κ), the Sharpe gain at κ, reaches 0: 0 if there is no gain at κ = 0,
+    inf if it survives κ = hi."""
     if gap(0.0) <= 0:
         return 0.0
     if gap(hi) > 0:
@@ -152,6 +179,13 @@ def metrics(res: pd.DataFrame, periods: execution.Periods, months: pd.PeriodInde
     if `months` is None). Turnover leaves out each segment's entry trade."""
     m = scored(res, periods, months)
     r = res[np.asarray(month_of(res, periods).isin(m.index))]
+    return summarize(m, r, break_even(res, periods, m.index), gamma)
+
+
+def summarize(m: pd.DataFrame, r: pd.DataFrame, break_even: float, gamma: float = GAMMA) -> dict:
+    """metrics() from its parts: m, the monthly excess returns (excess, bench_excess, size) on the scored
+    months; r, the holding periods those months hold (size, capped, turnover, bench_turnover, entry); and
+    the break-even κ on those months."""
     test = ev.sharpe_gain_test(m)
     x, b = m["excess"], m["bench_excess"]
     years = len(m) / 12
@@ -167,7 +201,7 @@ def metrics(res: pd.DataFrame, periods: execution.Periods, months: pd.PeriodInde
            "mean_size": r["size"].mean(), "share_capped": r["capped"].mean(),
            "turnover_per_rebalance": rebal["turnover"].mean(), "turnover_a_year": rebal["turnover"].sum() / years,
            "bh_turnover_a_year": rebal["bench_turnover"].sum() / years,
-           "break_even": break_even(res, periods, m.index)}
+           "break_even": break_even}
     span = ev.spanning(x, b)
     out.update({"alpha": span["alpha"], "t_alpha": span["t_alpha"]})
     return out

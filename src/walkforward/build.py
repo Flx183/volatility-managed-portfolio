@@ -127,22 +127,23 @@ def combination_row(comb: pd.DataFrame) -> dict:
 
 def placebo(book: e.Book, forecaster, periods, draws: int = e.ENGINE_RULES["placebo_draws"], jobs: int = -2) -> dict:
     """The engine's placebo on the walk-forward: each draw shuffles every recipe's forecast in time and
-    reruns sizes (c_t included) and trading. The real spanning alpha must beat 95% of the shuffled ones."""
+    reruns sizes (c_t included) and trading. The real spanning alpha must beat 95% of the shuffled ones.
+    Also returns the draws: each one's timed monthly excess return (rows: draws 0..draws-1, the seeds;
+    columns: months). Buy-and-hold does not depend on the forecast, so each draw's alpha is against the
+    real run's buy-and-hold, on the months that draw scores."""
     prep = runs.prepare(book, forecaster)
     real = runs.scored(runs.run(prep, 1.0, periods), periods)
 
     def chunk(seeds):
-        out = []
-        for s in seeds:
-            m = runs.scored(runs.run(prep, 1.0, periods, seed=s), periods)
-            out.append(ev.alpha(m["excess"], m["bench_excess"]))
-        return out
+        return [runs.scored(runs.run(prep, 1.0, periods, seed=s), periods)["excess"] for s in seeds]
 
-    seeds = np.array_split(np.arange(draws), 20)
-    shuffled = np.concatenate(Parallel(n_jobs=jobs)(delayed(chunk)(s) for s in seeds))
+    parts = Parallel(n_jobs=jobs)(delayed(chunk)(s) for s in np.array_split(np.arange(draws), 20))
+    D = pd.DataFrame([x for part in parts for x in part], index=pd.RangeIndex(draws, name="draw"))
+    shuffled = np.array([ev.alpha(x, real.loc[x.index, "bench_excess"]) for x in (D.loc[i].dropna() for i in D.index)])
     alpha = ev.alpha(real["excess"], real["bench_excess"])
     share = ev.placebo_share(alpha, shuffled)
-    return {"alpha": alpha, "shuffled": shuffled, "share_beaten": share, "pass": bool(share >= e.ENGINE_RULES["placebo_share"])}
+    return {"alpha": alpha, "shuffled": shuffled, "share_beaten": share, "pass": bool(share >= e.ENGINE_RULES["placebo_share"]),
+            "draws": D}
 
 
 # ---------------------------------------------------------------- 5-6: the family

@@ -23,8 +23,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import kurtosis, norm, skew
 
-BOOT = {"blocks": (6, 12), "reps": 10_000, "seed": 0}      # PREREGISTRATION Entry 6
-COMBINATION = {"gamma": 5, "train": 120, "max_abs": 5.0}    # Cederburg et al. (2020), as in the plan
+from src.frozen import freeze
+
+BOOT = freeze({"blocks": (6, 12), "reps": 10_000, "seed": 0})      # PREREGISTRATION Entry 6
+COMBINATION = freeze({"gamma": 5, "train": 120, "max_abs": 5.0})    # Cederburg et al. (2020), as in the plan
 EULER = 0.5772156649015329
 
 

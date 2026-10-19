@@ -168,7 +168,7 @@ def test_timing_one_asset_alone_is_timing_the_mix():
     book = e.Book.single(x, _rf(x), "A")
     per = ex.holding_periods(book)
     a = runs.run(runs.prepare(book, filters.rolling), 1.0, per)
-    b = checks.time_each(book, filters.rolling, per)
+    b = checks.time_each(book, per, forecaster=filters.rolling, power=1.0, max_size=1.5, min_pairs=120, c_window=None)
     assert a.index.equals(b.index)
     for col in ("size", "excess", "bench_excess", "turnover", "entry"):
         assert np.allclose(a[col].astype(float), b[col].astype(float), rtol=0, atol=1e-14)
@@ -181,7 +181,7 @@ def test_time_each_gives_each_asset_its_own_size():
     rec = screened.recipes(panel, surv)
     book = screened.book(panel, rec, "inv_vol")
     per = ex.holding_periods(book)
-    res = checks.time_each(book, filters.rolling, per)
+    res = checks.time_each(book, per, forecaster=filters.rolling, power=1.0, max_size=1.5, min_pairs=120, c_window=None)
     for a in ("mkt", "mom"):
         single = e.Book.single(panel[a], panel["rf"], a)
         size = e.decide(single, e.prepare(single, filters.rolling), 1.0)["size"]
@@ -223,8 +223,10 @@ def test_every_check_lists_its_base_first_and_one_change_per_variation():
     assert all(len(change) <= 2 for _, _, change in v)
     assert ("costs", "30 bp + borrowing at rf + 0.5%", {"kappa": 30e-4, "borrow": 0.005}) in v
     book = e.Book.single(_p(), _rf(_p()), "A")
-    c = checks.costs_for(book, {"kappa": 20e-4})
-    assert c.kappa == {"A": 20e-4} and c.borrow_spread == 0 and checks.costs_for(book, {}) == e.NO_COSTS
+    c = checks.costs_for(book, checks.spec_of({"kappa": 20e-4}))
+    assert c.kappa == {"A": 20e-4} and c.borrow_spread == 0 and checks.costs_for(book, checks.BASE) == e.NO_COSTS
+    assert checks.spec_of({"kappa": 30e-4, "borrow": 0.005}) == checks.Spec(costs=(30e-4, 0.005))
+    assert checks.spec_of({"max_size": None}) == checks.Spec(cap=None)
 
 
 def test_a_daily_run_starting_inside_a_month_does_not_score_that_month(p):

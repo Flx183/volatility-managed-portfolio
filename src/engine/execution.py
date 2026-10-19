@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from src.engine.data import DAY, Book
+from src.frozen import freeze
 
 DAYS_PER_YEAR = 252
 
@@ -55,12 +56,12 @@ NO_COSTS = Costs()
 # before costs (an upper bound): French and AQR factors are not tradeable as built.
 # Phase 8's cost row adds "etf_short_stress": the same costs with a 1% SPY short fee, for a short whose
 # rebate is low or missing.
-ETF_KAPPA = {"spy": 5e-4, "mtum": 10e-4, "qual": 10e-4, "usmv": 10e-4}
-COSTS = {
+ETF_KAPPA = freeze({"spy": 5e-4, "mtum": 10e-4, "qual": 10e-4, "usmv": 10e-4})
+COSTS = freeze({
     "paper": NO_COSTS,
     "etf": Costs(kappa=ETF_KAPPA, borrow_spread=0.005, short_fee={"spy": 0.0025}),
     "etf_short_stress": Costs(kappa=ETF_KAPPA, borrow_spread=0.005, short_fee={"spy": 0.01}),
-}
+})
 
 
 @dataclass(frozen=True)

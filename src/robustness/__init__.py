@@ -24,15 +24,16 @@ from __future__ import annotations
 
 from src import variance as v
 from src.engine.data import DAY, MONTH, WEEK
+from src.frozen import freeze
 
-BASES = {
+BASES = freeze({
     "primary": "the primary (screened book, Entry 6), all its scored months",
     "primary_1997": "the primary, 1997-2018 only (Entry 7's cut; information)",
     "fixed": "Phase 6's fixed book: market + momentum + BAB (information)",
-}
+})
 
 # Fixed on 2026-10-19 before any Phase 8 result (PREREGISTRATION Entry 8).
-ROBUST_RULES = {
+ROBUST_RULES = freeze({
     "eras": v.SUBPERIODS,                    # Phase 2's three eras
     "min_era_months": 60,                    # an era with fewer scored months is reported, not read
     "daily_min_pairs": 2520,                 # c_t of a daily book: ten years of 252 trading days
@@ -44,11 +45,11 @@ ROBUST_RULES = {
     "worst_days": 5,                         # crises: buy-and-hold's five worst days inside the span
     "lead_months": 6,                        # crises: the window opens 6 months before the peak ...
     "after_months": 12,                      # ... and closes 12 months after the trough
-}
+})
 
 # Check -> (the base's own setting, then each variation as (label, change)). Leave-one-out is set
 # per base in checks.variations, from the assets that base holds.
-CHECKS = {
+CHECKS = freeze({
     "subperiod": ("all months", [(era, {"era": era}) for era in v.SUBPERIODS]),
     "frequency": ("monthly", [("weekly", {"freq": WEEK}), ("daily", {"freq": DAY})]),
     "window": ("expanding", [(k, {"window": k}) for k in ROBUST_RULES["windows"]]),
@@ -58,7 +59,7 @@ CHECKS = {
     "leave_one_out": ("none dropped", []),
     "costs": ("0 bp", [(f"{k * 1e4:.0f} bp", {"kappa": k}) for k in ROBUST_RULES["kappas"]]
               + [("30 bp + borrowing at rf + 0.5%", {"kappa": 30e-4, "borrow": ROBUST_RULES["borrow_spread"]})]),
-}
+})
 FREQS = {MONTH: "monthly", WEEK: "weekly", DAY: "daily"}
 
 from src.robustness import checks, crises     # noqa: E402  (after the rules they read)

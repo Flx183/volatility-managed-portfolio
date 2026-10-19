@@ -31,12 +31,13 @@ import pandas as pd
 
 from src import variance as v
 from src.config import FACTORS
+from src.frozen import freeze
 
 # ---------------------------------------------------------------- rules
 # Fixed before any Phase 3 result was looked at, except `etf_r2`, changed on 2026-10-17 after the
 # first run showed F4 could not fail (see ETF_REGRESSORS). Phase 2 thresholds (Ljung-Box 1%,
 # phi > 0.5, t > 1.96, rank correlation <= -0.7) are in variance.RULES.
-SCREEN_RULES = {
+SCREEN_RULES = freeze({
     "min_months": 120,        # a factor needs 10 years of complete months before it can be screened
     "n_eras": 3,              # F6: the history so far is cut into this many equal-length eras
     "etf_min_days": 252,      # F4, F5: an ETF needs a year of trading history to be judged
@@ -44,7 +45,7 @@ SCREEN_RULES = {
                               #     (0.5 chosen before the re-run, not tuned to its result)
     "dollar_volume": 50e6,    # F5: median daily dollar volume above this ...
     "liquidity_days": 252,    #     ... over the last 252 trading days
-}
+})
 # F5's second half, bid-ask spread below 5 bp, is NOT applied: Phase 1 has no quote data,
 # and the high-low spread proxy (Corwin-Schultz) reads 8-15 bp for SPY, whose true spread is
 # about 1 bp. Verify spreads with quote data in the cost phase.
@@ -52,7 +53,7 @@ SCREEN_RULES = {
 # The ETF that stands in for each factor. A judgment, not a measurement: QUAL (quality) for
 # profitability and USMV (minimum volatility) for betting-against-beta are loose matches.
 # Size, value and investment have no ETF among the four downloaded.
-ETF_FOR = {"mkt": "SPY", "mom": "MTUM", "rmw": "QUAL", "bab": "USMV"}
+ETF_FOR = freeze({"mkt": "SPY", "mom": "MTUM", "rmw": "QUAL", "bab": "USMV"})
 # F4 first hedges out market exposure (ETF minus beta x market, beta from the as-of sample), then
 # asks whether the leftover tilt is explained by these factors. Unhedged, a long-only ETF clears any
 # R² cutoff on market exposure alone, so the first version of F4 (R² > 0.7 on market, size, value,
