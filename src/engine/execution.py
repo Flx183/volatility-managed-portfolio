@@ -7,7 +7,7 @@ The lag. The size decided at the close of month t is traded at that close (or `d
 later) and held until the next trade. Holding period m runs from the trade after month m-1 to the
 trade after month m, so its return never depends on a forecast made with its own data. With
 delay=0, holding period m is exactly calendar month m. A weekly book (Phase 7) does the same with
-weeks ending on Friday.
+weeks ending on Friday, and a daily book (Phase 8) with trading days.
 
 Drift. Between trades nothing is rebalanced, so an instrument that gains becomes a bigger share
 of the account. With w the positions put on at the trade and R, R_f the period's total returns:
@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from src.engine.data import Book
+from src.engine.data import DAY, Book
 
 DAYS_PER_YEAR = 252
 
@@ -81,7 +81,7 @@ class Periods:
 def period_labels(index: pd.DatetimeIndex, delay: int = 0, freq: str = "M") -> pd.PeriodIndex:
     """The holding period of each trading day. Period m opens at the close of period m-1's last
     trading day plus `delay` trading days, and closes at the same point after period m. Periods are
-    calendar months (freq "M") or weeks ending on Friday ("W-FRI")."""
+    calendar months (freq "M"), weeks ending on Friday ("W-FRI") or trading days ("D")."""
     period = index.to_period(freq)
     last = pd.Series(np.arange(len(index))).groupby(period).max()         # position of each period's last day
     bounds = (last + delay).clip(upper=len(index) - 1).drop_duplicates(keep="first")
@@ -110,6 +110,15 @@ def holding_periods(book: Book, costs: Costs = NO_COSTS, delay: int = 0) -> Peri
     )
 
 
+def consecutive(m: pd.PeriodIndex, calendar: pd.PeriodIndex) -> bool:
+    """Whether m runs without a gap: months and weeks by period arithmetic, trading days (DAY) along
+    the calendar of trading days (Friday then Monday is no gap)."""
+    if m.freqstr != DAY:
+        return bool((m == pd.period_range(m[0], periods=len(m), freq=m.freq)).all())
+    pos = calendar.get_indexer(m)
+    return bool((pos >= 0).all() and (np.diff(pos) == 1).all())
+
+
 def simulate(periods: Periods, targets: pd.DataFrame) -> pd.DataFrame:
     """Returns of holding `targets` (holding months x instruments, as fractions of the account),
     under the periods' cost model.
@@ -118,7 +127,7 @@ def simulate(periods: Periods, targets: pd.DataFrame) -> pd.DataFrame:
     financing), turnover (Σ |trade| at the opening trade), trading (its cost), net, rf, excess
     (net - rf), and per instrument w_<i> (held) and drift_<i> (drifted, at the period's end)."""
     m = targets.index
-    if len(m) and (m != pd.period_range(m[0], periods=len(m), freq=m.freq)).any():
+    if len(m) and not consecutive(m, periods.growth.index):
         raise ValueError("holding periods must be consecutive")
     w, cols = targets, targets.columns
     held = w != 0

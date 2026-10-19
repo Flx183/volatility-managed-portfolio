@@ -13,8 +13,9 @@ Five stages, each in its own module and testable alone:
     placebo(book, rule)         real alpha against 1,000 runs with the forecast shuffled in time
 
 A new forecast model is a function (daily returns -> one forecast per holding period), passed as
-`forecaster`; nothing else changes. Holding periods are months, or weeks for a weekly book (Phase 7);
-c_t then counts weekly pairs, and min_months is the number of pairs it needs.
+`forecaster`; nothing else changes. Holding periods are months, weeks for a weekly book (Phase 7) or
+trading days for a daily one (Phase 8); c_t then counts weekly or daily pairs, and min_months is the
+number of pairs it needs.
 
 The benchmark is the same book at a constant size of 1 (the buy-and-hold mix), traded on the same
 dates and paying the same costs, so the timed and untimed runs differ only in the size.
@@ -88,7 +89,7 @@ def decide(book: Book, prepared: dict[int, pd.DataFrame], power: float, c="realt
         s = weights.signal(f, power)
         ck = weights.realtime_c(mon["ret"], s, min_months, c_window) if c == "realtime" else pd.Series(float(c), s.index)
         held = ids.index[ids == k]
-        t = held - 1                                            # decided at the end of the month before
+        t = data.shift(held, -1, book.calendar)                 # decided at the end of the period before
         rows.append(pd.DataFrame({"recipe": k, "forecast": f.reindex(t).to_numpy(), "signal": s.reindex(t).to_numpy(),
                                   "c": ck.reindex(t).to_numpy()}, index=held))
     dec = pd.concat(rows).sort_index()

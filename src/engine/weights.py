@@ -19,6 +19,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from src.engine import data
+
 
 def signal(forecast: pd.Series, power: float) -> pd.Series:
     f = forecast.dropna()
@@ -32,14 +34,17 @@ def realtime_c(ret: pd.Series, sig: pd.Series, min_months: int = 120, window: in
 
     Pair s holds the signal known at the end of month s and the return of month s+1. Pair s is
     complete at the end of month s+1, so c_t uses pairs s <= t-1. None until min_months pairs exist.
-    window=None uses every pair so far; an integer uses the last `window` pairs."""
+    window=None uses every pair so far; an integer uses the last `window` pairs. For a daily book,
+    "month" reads "trading day", and s+1 is the next trading day of ret's calendar."""
     nxt = ret.copy()
-    nxt.index = nxt.index - 1                                  # row s: r_{s+1}
+    nxt.index = data.shift(ret.index, -1, ret.index)           # row s: r_{s+1}
+    nxt = nxt[nxt.index.notna()]
     pairs = pd.DataFrame({"y": nxt, "z": nxt * sig}).dropna()
     roll = pairs.expanding(min_months) if window is None else pairs.rolling(window, min_periods=min_months)
     sd = roll.std()
     c = (sd["y"] / sd["z"]).dropna()
-    c.index = c.index + 1                                      # pair s is complete at the end of s+1
+    c.index = data.shift(c.index, 1, ret.index)                # pair s is complete at the end of s+1
+    c = c[c.index.notna()]
     return c.reindex(c.index.union(sig.index)).ffill().reindex(sig.index).rename("c")
 
 

@@ -11,6 +11,8 @@ Phase 7, step 2: running a variant and measuring it
     excess_months(res, periods)       monthly excess returns; a weekly run compounds its weeks
     metrics(res, periods)             Sharpe ratio, CER, Sortino, drawdown, turnover, break-even and
                                       the primary test, for the timed run and buy-and-hold
+    year_weighted(m, scale)           option (c) of Entry 10: each holding year's months scaled to an
+                                      equal risk budget, both runs by the same number
 
 Every statistic is computed on calendar-month excess returns, so monthly and weekly variants are
 measured the same way (annualized with 12, Newey-West with 6 lags).
@@ -24,19 +26,22 @@ from scipy.optimize import brentq
 
 from src import engine as e
 from src.engine import evaluation as ev, execution
-from src.engine.data import MONTH, WEEK
+from src.engine.data import DAY, MONTH, WEEK
 from src.models import inputs, weekly
 from src.walkforward import stats
 
 GAMMA = 5                                 # risk aversion of every CER (Phase 6's)
-MIN_PAIRS = {MONTH: 120, WEEK: 520}       # c_t needs ten years of (signal, next-period return) pairs
+MIN_PAIRS = {MONTH: 120, WEEK: 520,      # c_t needs ten years of (signal, next-period return) pairs
+             DAY: 2520}                   # (daily: Phase 8's rebalancing check, 252 trading days a year)
 DOWN_DAYS = 22                            # downside rule: the down-day share of the last 22 days' Σ r²
 
 
 def segments(book: e.Book) -> list[e.Book]:
-    """The book cut where its holding periods stop being consecutive (a year the screen left empty)."""
+    """The book cut where its holding periods stop being consecutive (a year the screen left empty).
+    A daily book counts trading days, so a weekend is no gap."""
     idx = book.positions.index
-    breaks = np.flatnonzero(np.diff(idx.asi8) != 1) + 1
+    step = book.calendar.get_indexer(idx) if book.freq == DAY else idx.asi8
+    breaks = np.flatnonzero(np.diff(step) != 1) + 1
     return [e.Book(book.returns, book.rf, book.positions.iloc[s]) for s in np.split(np.arange(len(idx)), breaks)]
 
 
@@ -46,13 +51,15 @@ def prepare(book: e.Book, forecaster) -> list[tuple[e.Book, dict]]:
 
 def run(prepared: list[tuple[e.Book, dict]], power: float, periods: execution.Periods,
         max_size: float | None = e.ENGINE_RULES["max_size"], min_pairs: int | None = None,
-        seed: int | None = None) -> pd.DataFrame:
+        seed: int | None = None, c_window: int | None = None) -> pd.DataFrame:
     """The engine's output (decision, timed account, bench_ account) for every scored period, with
-    `entry` marking each segment's first trade. seed shuffles each recipe's forecast (the placebo)."""
+    `entry` marking each segment's first trade. seed shuffles each recipe's forecast (the placebo).
+    c_window: c_t from the last c_window pairs instead of all of them (Phase 8's rolling windows)."""
     parts = []
     for seg, prep in prepared:
         try:
-            dec = e.decide(seg, prep, power, max_size=max_size, min_months=min_pairs or MIN_PAIRS[seg.freq], seed=seed)
+            dec = e.decide(seg, prep, power, max_size=max_size, min_months=min_pairs or MIN_PAIRS[seg.freq], seed=seed,
+                           c_window=c_window)
         except e.NoSize:                                     # no c_t anywhere in the segment: cash
             continue
         res = e.trade(seg, dec, periods)
@@ -112,6 +119,17 @@ def scored(res: pd.DataFrame, periods: execution.Periods, months: pd.PeriodIndex
     m = pd.DataFrame({"excess": excess_months(res, periods), "bench_excess": excess_months(res, periods, "bench_"),
                       "size": res["size"].groupby(month_of(res, periods)).mean()})
     return m if months is None else m.loc[months]
+
+
+def year_weighted(m: pd.DataFrame, scale: pd.Series) -> pd.DataFrame:
+    """Option (c) of PREREGISTRATION Entry 10: both runs' monthly excess returns multiplied by their holding
+    year's scale (screened.year_scale), so every holding year carries about the same risk. The same number
+    scales both runs in a year, so the test gains no look-ahead and timing no help. For a monthly book the
+    holding year is the calendar year. Then ev.sharpe_gain_test(year_weighted(m, scale)) is the (c) test."""
+    s = scale.reindex(m.index.year).to_numpy()
+    if np.isnan(s).any():
+        raise ValueError(f"no scale for the holding year of {m.index[np.isnan(s)][0]}")
+    return m.assign(excess=m["excess"] * s, bench_excess=m["bench_excess"] * s)
 
 
 def break_even(res: pd.DataFrame, periods: execution.Periods, months: pd.PeriodIndex, hi: float = 0.5) -> float:

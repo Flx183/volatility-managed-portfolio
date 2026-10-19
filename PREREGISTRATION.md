@@ -668,3 +668,292 @@ The cut was chosen after seeing the result, so it is a diagnosis and not evidenc
 
     Options (b) and (c) are new rules written after this result, and would be recorded as such.
 10. **The holdout's book.** Entry 1, Section 6 names the primary's assets as market, momentum and BAB; the user's call in Entry 6 makes the primary's book the real-time screen. The 2018 year-end screen admits exactly those three, so the two agree for 2019, but later year-ends could differ. Confirm that the final test continues the real-time screen.
+
+---
+
+## Entry 8 — 2026-10-19: Phase 8, the robustness checks and the crisis case studies
+
+**Status.** Written before any Phase 8 result. Five things were known when it was written:
+
+- Phase 7's results and Entry 7's diagnosis. 1984, a market-only year, decides the primary's test; over 1997–2018 alone it gains +0.30; Phase 6's fixed book gains +0.355 over its 817 months and +0.61 on the primary's 276.
+- Phase 7's figures. The primary's timed path falls less than buy-and-hold in 1998–2000 and 2008, and SPY timed alone falls less in 2000–2002 and 2008.
+- Phase 6's results on the fixed book. Its break-even cost is 0.64% one-way, against the primary's 0.03% (Phase 7).
+- The plan's Phase 8 table: its checks, their variations and the four crises.
+- A mechanics-only run of every Phase 8 book and change on the real panel. It printed dates, counts and the crises' peak and trough dates, and no return statistic (Section 7).
+
+Every rule marked *(my choice)* was set with this entry by Claude, not by the plan or the user.
+
+**Resolves** the Phase 8 items of Entry 1, Section 6 (caps of 1.0, 2.0 and none; timing each piece before combining) and Entry 3, Section 1 (the 1% short-fee stress). **Leaves open** Entry 7's items 9 and 10, which are the user's calls before Phase 9.
+
+### 1. What the checks run on
+
+| Base | What | Role |
+|---|---|---|
+| **Primary** | Entry 6, Section 3: the screened book, inverse-volatility mix, M3 GJR-GARCH, inverse-variance timing, monthly, cap 1.5, real-time c_t from 120 pairs, no costs. Its 276 scored months | the chosen specification |
+| Primary, 1997–2018 | The same runs, scored on 1997–2018 only (264 months): Entry 7, Section 3's cut | information *(my choice)*. 1984 holds the market alone and swamps every pooled statistic (Entry 7), so each check is also read without it. The cut was chosen after Phase 7's result was seen; it is reported beside the primary, never instead of it |
+| Fixed book | Phase 6's fixed book: market, momentum and BAB on Phase 4's recipes, scored December 1950 to December 2018 (817 months), at the same specification | information *(my choice)*. The plan's checks were written for this book: its subperiods start in 1926, and its leave-one-out names momentum and BAB |
+
+Every result is an upper bound: paper factors, and no costs outside the cost check.
+
+### 2. The checks: one change at a time
+
+| Check | Base | Variations | Rule |
+|---|---|---|---|
+| Subperiods | all months | 1926–1962, 1963–1990, 1991–2018 (Phase 2's eras) | The base run, scored on each era's months. Nothing is re-estimated: the walk-forward is already real-time. An era with fewer than 60 scored months is reported without a reading *(my choice)*. The primary scores nothing before 1984 (Entry 6's ten-year training windows), so its first era is empty and its second holds only 1984 |
+| Rebalance frequency | monthly | weekly, daily | Weekly: Entry 6, Section 4's weekly M3 (5-day forecast from the month-end fits; c_t from 520 pairs). Daily *(my choice of details)*: trade at every close; M3's one-day-ahead variance σ²_{d+1} from the latest month-end fit, filtered to that close; c_t from 2,520 daily pairs (ten years of 252 days); a recipe takes over on the first trading day after its year-end. Weekly and daily runs are scored on calendar months, and a month counts only if the run holds a position on every trading day of it |
+| Estimation window | expanding | rolling 10 years, rolling 20 years | The two estimates the strategy makes at each rebalance: the GARCH fit (on the last 2,520 or 5,040 trading days, the recursion started at the window's mean r², with the warm start and Entry 5's safeguards) and c_t (the last 120 or 240 monthly pairs, at least 120). The screen (expanding) and the mix weights (the last 10 years) keep their own windows: they decide what is held, not how much *(my choice)* |
+| Leverage cap | 1.5 | 1.0, 2.0, none | c_t is unchanged: it matches the uncapped volatility |
+| Timing rule | inverse variance | inverse volatility, downside inverse volatility | Entry 6, Section 4's definitions, under M3 |
+| Combine order | combine, then time | time each, then combine | Each asset in the recipe gets its own size, min(c_i,t / σ̂²_i,t, 1.5), from M3 on its own daily returns (first forecast at its 120th month) and its own real-time c_i,t (120 pairs). Its position is w_i × size_i, put on at the month-end close and left to drift. The benchmark is unchanged. A month is scored once every asset held has a size *(my choice of details)* |
+| Leave one out | none dropped | each asset in turn | **Primary:** each factor the screen admits on the development sample (market, momentum, profitability, BAB) is removed from every year-end's list, and the recipe is rebuilt on the rest (Phase 4's Steps 1–2). A year left empty is cash and not scored. **Fixed book:** market, momentum or BAB is dropped, and Phase 4's paper recipe is rebuilt on the other two. Dropping BAB gives Phase 4's paper market + momentum track, the ETF track's paper twin |
+| Costs | 0 bp | 5, 10, 20, 30 bp; 30 bp with borrowing | κ one-way per unit traded on every instrument, in both runs. The last row adds borrowed cash at rf + 0.5% a year (Entry 2's financing). Every row also reports its break-even κ (Entry 6, Section 5). κ prices trading each factor as a unit, not the trading inside it (Entry 3, Section 1) |
+| Placebo | — | — | Phase 7's: 1,000 shuffled forecasts (seeds 0–999). Each recipe's forecast is reordered in time, then sizes and c_t are rerun. It passes if the real spanning α beats 95% of the shuffled ones (Entry 2). Run on each base book and read on each base's months. As information, it is also read on each era with at least 60 months, with the share of shuffled Sharpe gains the real gain beats |
+
+**Months.** Every change is scored on the base's months that the changed run also scores. So no change adds months, and a change that loses months reports how many.
+
+**Each row reports** Entry 3's Sharpe gain with its standard error, one-sided p and reading; both volatilities; the mean size and share of months capped; turnover and the break-even κ; the CER gain; both maximum drawdowns; and the spanning α.
+
+**Beside the checks** (information):
+- **Each asset's share of buy-and-hold's variance**, w_i (Σw)_i / w′Σw, for the inverse-volatility and equal mixes, from each recipe's own 10-year window. The plan expects momentum to carry most of the risk under equal weights.
+- **Entry 3's short-fee stress:** the ETF track's SPY + MTUM book with a 1% SPY short fee, against 0.25%. It has 20 development months.
+
+### 3. How a check is read *(my choice)*
+
+- **No p-value is adjusted.** No row can become the result (Entry 1, Section 6), so each p-value is reported raw, as a measure of distance from zero.
+- **Each check gets one of three verdicts** against its base:
+  - **holds:** every variation has the base's reading;
+  - **sign holds:** some reading differs, but every gain has the base's sign;
+  - **flips:** some variation's gain has the opposite sign.
+- **Eras without a reading** are left out of the subperiod check's verdict.
+- **Sturdy or fragile** is judged check by check, not as one score.
+
+### 4. The crisis case studies
+
+| Episode | Peak: the market's highest close in | Trough: its lowest close after the peak, by the end of |
+|---|---|---|
+| 1929–1932 | 1929 | 1932 |
+| October 1987 | 1987 | 1987 |
+| 2000–2002 | 2000 | 2002 |
+| 2008–2009 | 2007 | 2009 |
+
+- **Peak and trough** are read on the market's total-return level (excess return plus rf). The 2008–2009 peak is searched in 2007, because the market peaked in October 2007 *(my choice)*.
+- **The window** runs from 6 months before the peak to 12 months after the trough (the plan's).
+- **Runs shown.** Each of these is shown in an episode if it holds a position on every trading day of the window:
+  - the primary;
+  - Phase 6's fixed book;
+  - momentum alone, under Barroso and Santa-Clara's rule (126-day variance, 12% target, no cap, monthly, as published) and under the frozen rule (M3, real-time c_t, cap 1.5);
+  - the market alone, under Barroso and Santa-Clara's rule.
+- **Only Barroso and Santa-Clara's rule exists in 1929–1932.** It needs six months of data. Every frozen-rule book needs 20 years: 10 to make its first forecast and 10 more for c_t.
+- **Panels.** One figure per episode, day by day, with the plan's four rows:
+  - price: buy-and-hold's value, log scale;
+  - σ̂: the forecast in force, as annualized volatility, beside the realized 22-day volatility;
+  - the size w_t;
+  - cumulative return relative to cash, timed against buy-and-hold.
+- **The three questions, in numbers:**
+  1. **Before or after the worst days?** Take buy-and-hold's five worst days between peak and trough. Compare the size held on them with the mean size over the six months before the peak, and the timed run's loss on them with buy-and-hold's.
+  2. **Did it miss the rebound?** Growth over the 12 months after the trough, timed against buy-and-hold, beside the same over the fall (peak to trough), with the mean size in each.
+  3. **How much did the cap and costs matter?** The window's growth, over whole calendar months: as run, with no cap, at a cap of 1.0 (and 1.5 for Barroso and Santa-Clara's uncapped rule), and at 30 bp a trade.
+- **Momentum's crashes.** July–August 1932 and March–May 2009, when Barroso and Santa-Clara's WML lost 91.59% and 73.42%. Reported: momentum at size 1, both managed versions, and the size at the start of each crash. This project's momentum is French's UMD, not their decile spread, so its losses are different numbers.
+
+### 5. Information only
+
+- **The two information bases:** the primary over 1997–2018, and the fixed book.
+- **The placebo by era.**
+- **The risk shares and the short-fee stress.**
+- **The crisis case studies.**
+
+### 6. Expectations, written before the run
+
+- **The primary's gain is small against its standard error** (+0.013 against 0.18). Many of its checks may flip on noise alone. The fixed book (+0.36, standard error 0.10) is the sharper test of sturdiness.
+- **Costs.** The primary's break-even is 0.03%, so its gain should turn negative at the first cost row. The fixed book's break-even is 0.64% one-way, so it should keep a positive gain at 30 bp.
+- **The cap.** In Phase 6 the fixed book's Sharpe ratio followed its size, and the 1.5 cap bound in 25% of months. A cap of 1.0 should lower its gain; whether any edge is left without leverage is the open question.
+
+### 7. The mechanics run (dates and counts only)
+
+- **Months.** The primary scores 276 months (1984, and 1997–2018), its cut 264, and the fixed book 817. Every change scores all of its base's months, with two exceptions:
+  - **Dropping the market from the primary** leaves 1984 empty, so that row scores 264 months.
+  - **The weekly primary scores 275.** Its first week of 1997 opens on 27 December 1996, before the 1996 year-end recipe takes over, so January 1997 is not held on every trading day. Phase 7 gave each week to the month of its closing trade and so scored that January; this entry's whole-month rule does not.
+- **The daily fixed book** has a c_t from August 1949, earlier than the monthly one. It is scored on the base's 817 months.
+- **The crises**, from the market's total-return level:
+
+| Episode | Peak | Trough | Window |
+|---|---|---|---|
+| 1929–1932 | 3 September 1929 | 8 July 1932 | March 1929 – July 1933 |
+| October 1987 | 25 August 1987 | 4 December 1987 | February 1987 – December 1988 |
+| 2000–2002 | 24 March 2000 | 9 October 2002 | September 1999 – October 2003 |
+| 2008–2009 | 9 October 2007 | 9 March 2009 | April 2007 – March 2010 |
+
+- **The 1987 trough is 4 December, not 19 October.** After the crash the market fell slightly lower in early December.
+- **The primary covers only two windows,** 2000–2002 and 2008–2009. It holds cash in 1985–1996 and has no book before 1984.
+
+---
+
+## Entry 9 — 2026-10-19: Phase 8 outcome
+
+**Status.** Written after the Phase 8 build. Entry 8 is not edited, and no rule changed after the first run.
+
+**Two changes after the first build.** Neither touches a check, a verdict or a crisis answer:
+- **The risk-share table** (information beside leave-one-out) counted recipes that were never held: 1936's momentum-only recipe, which had no c_t (cash), and the 2018 year-end recipe, held only in the holdout. It now averages over the recipes held in each base's scored years.
+- **The crisis paths** now keep two months before each window. This lets the panels' realized 22-day volatility be defined from the window's first day. The answers still use the window only.
+
+Section 3 was added after the results had been seen. It is labelled as such and changes no reading.
+
+### 1. Checks of the run
+
+- **The bases reproduce Phase 7.**
+  - Primary: +0.0131 (p 0.471).
+  - Phase 6's fixed book: +0.3553 (p 0.0002).
+  - The cut without 1984: +0.304 (p 0.012).
+- **The placebos reproduce Phase 7's,** with the same seeds: 86.3% for the primary.
+- **The daily engine.** Its sizes and returns were rebuilt by hand on 51 days of the fixed book's 1987 recipe and match to 10⁻¹². Its forecasts are unchanged when every return after a date is replaced.
+- **The notebook rebuilds the daily fixed-book row** through the code, and it matches the table to 10 digits.
+- **Monthly and weekly results are unchanged by the engine's daily periods:** Phase 6's 1.5665238314864909 and 0.527152631253471, and Phase 7's primary and weekly variant.
+
+### 2. Outcome under Entry 8's rules (`reports/phase8_*.csv`, `reports/phase8_robustness.ipynb`)
+
+**Verdicts, each check against its base.** Each cell is the verdict, then how many variations kept a positive gain, how many read "edge", and how many were read.
+
+| Check | Primary (276 months, +0.013, inconclusive) | Primary, 1997–2018 (+0.304, edge) | Fixed book (+0.355, edge) |
+|---|---|---|---|
+| Subperiods | sign holds (1 of 1 read; edge) | — | sign holds (3 / 2 / 3) |
+| Rebalance frequency | holds (2 / 0 / 2) | holds (2 / 2 / 2) | holds (2 / 2 / 2) |
+| Estimation window | holds (2 / 0 / 2) | holds (2 / 2 / 2) | holds (2 / 2 / 2) |
+| Leverage cap | holds (3 / 0 / 3) | holds (3 / 3 / 3) | holds (3 / 3 / 3) |
+| Timing rule | holds (2 / 0 / 2) | holds (2 / 2 / 2) | holds (2 / 2 / 2) |
+| Combine order | holds (1 / 0 / 1) | holds (1 / 1 / 1) | holds (1 / 1 / 1) |
+| Leave one out | **flips** (3 / 1 / 4) | sign holds (4 / 3 / 4) | holds (3 / 3 / 3) |
+| Costs | **flips** (0 / 0 / 5) | sign holds (5 / 2 / 5) | holds (5 / 5 / 5) |
+
+**Selected rows** (Sharpe gain; edge if one-sided p < 0.05):
+
+| Change | Primary | Primary, 1997–2018 | Fixed book |
+|---|---|---|---|
+| Era 1950/1984–1962 / 1963–1990 / 1991–2018 | – / −0.15 (12 months, not read) / +0.30 | – | +0.03 / +0.19 / +0.57 |
+| Weekly / daily | +0.10 / +0.18 | +0.36 / +0.43 | +0.48 / +0.66 |
+| Rolling 10 / 20 years | +0.09 / +0.14 | +0.19 / +0.32 | +0.34 / +0.36 |
+| Cap 1.0 / 2.0 / none | +0.07 / +0.03 / +0.03 | +0.24 / +0.32 / +0.33 | +0.28 / +0.38 / +0.39 |
+| Inverse volatility / downside | +0.08 / +0.04 | +0.22 / +0.28 | +0.29 / +0.30 |
+| Time each, then combine | +0.06 | +0.34 | +0.32 |
+| Drop market / momentum / profitability / BAB | +0.37 / +0.04 / +0.15 / −0.04 | +0.37 / +0.35 / +0.34 / +0.07 | +0.58 / +0.18 / – / +0.19 |
+| 5 / 10 / 20 / 30 bp; 30 bp + borrowing | −0.01 / −0.03 / −0.08 / −0.13; −0.14 | +0.27 / +0.24 / +0.18 / +0.11; +0.10 | +0.33 / +0.30 / +0.25 / +0.19; +0.18 |
+| Break-even κ: monthly / weekly / daily | 3 / 7 / 7 bp | 47 / 21 / 13 bp | 64 / 24 / 17 bp |
+| Placebo (real α beats) | 86.3%: fails | 99.1%: passes | 100%: passes (by era: 92.2% fails, 97.9%, 100%) |
+
+**Information beside the checks.**
+- **Risk shares** (fixed book, averaged over held recipes): market 22%, momentum 53%, BAB 24% under inverse-volatility weights; 56%, 40%, 3% under equal weights. The plan expected momentum to carry most of the risk under equal weights; here the market does.
+- **The short-fee stress** (ETF track, 20 months): the gain goes from +0.088 to +0.094.
+
+**Crises** (frozen rule unless marked "B&SC", Barroso and Santa-Clara's rule):
+
+| Episode | Before or after the worst days | The rebound | Cap and costs |
+|---|---|---|---|
+| 1929–1932 (only B&SC exists) | After: the market held 0.79 into October 1929 and cut to 0.34 for November. On the worst days it held 0.53 and took 54% of the loss | The market missed it: +44% against +180%. Momentum's rebound was its crash: −26% against −52% | A cap of 1.0 would have cost managed momentum 7 points; 30 bp under 1 point |
+| October 1987 | After: the fixed book held 0.92 in October and took 91% of the loss; 0.02 in November. Momentum held 1.22 (frozen) and 2.23 (B&SC), and took 1.12 and 2.3 times the loss | Not missed: the fixed book held 1.25 (+1.9% against +2.4%). The market (B&SC) +6% against +20% | Caps of 1.5 or 1.0 would have saved B&SC momentum 2.4 or 5.6 points |
+| 2000–2002 | Before: 0.10–0.17 on the worst days, 11–16% of the loss | The mixes rose in the fall (fixed book +29% against +52%) and fell in the rebound (−0.5% against −5.9%) | At most 5 points (30 bp: fixed book) |
+| 2008–2009 | Before: 0.17–0.31 on the worst days, 18–29% of the loss | The primary missed part of it (+4.6% against +13.3%). Momentum's crash: −8% against −54%. The market (B&SC) +21% against +75% | At most 3 points; B&SC momentum was levered near 3, and a cap of 1.0 would have cost it 18 points |
+
+**Momentum's crashes** (French's UMD, not Barroso and Santa-Clara's WML):
+
+| Crash | UMD at size 1 | B&SC rule | Frozen rule |
+|---|---|---|---|
+| July–August 1932 | −46% | −22% (size 0.45) | does not exist yet |
+| March–May 2009 | −46% | −15% (size 0.33) | −2% (size 0.06) |
+
+### 3. Information added after the run: daily rebalancing and autocorrelation
+
+- **The pattern.** The fixed book's daily gain over monthly is largest in 1963–1990 (+0.65 against +0.19). That is the era when the mix's daily returns were most autocorrelated: AR(1) 0.38, against 0.24 in 1950–1962 and 0.11 in 1991–2018.
+- **The likely reason.** Paper factors built from stale closing prices are autocorrelated like this, and a daily GJR rule that cuts size more after a down day profits from it.
+- **What follows.** Part of the daily row's gain is probably not tradeable. The row stands as run; read it as a looser upper bound than the monthly ones.
+- **Not a test.** This was found after the result was seen, and no rule was run to separate the two explanations.
+
+### 4. Reading (Entry 8, Section 3)
+
+- **Sturdy:**
+  - Phase 6's fixed book. Every check holds or keeps its sign, and it has no edge only in 1950–1962.
+  - The primary's 1997–2018 result, provided BAB is held and costs stay below about 10–20 bp.
+- **Fragile:**
+  - The primary as registered: its reading holds at "inconclusive", but its gain changes sign with any cost or without BAB.
+  - Phase 7's verdict still rests on 1984.
+- **Unchanged:** Entry 7's items 9 and 10 remain the user's calls before Phase 9.
+
+---
+
+## Entry 10 — 2026-10-19: the holdout's statistic for unequal-risk years, and the holdout's book (the user's calls)
+
+**Status.** These are the user's calls of 2026-10-19 on Entry 7's items 9 and 10. Every rule here was **written after the development results** that motivated it, and **before any holdout data is read**. For the holdout, then, it is a pre-registration. For development it is not: it changes no development result.
+
+**What had been seen when it was written:**
+- **Phase 7's primary over all 276 months:** +0.013 (standard error 0.180, p 0.471), inconclusive.
+- **The same over 1997–2018 alone (264 months):** +0.304 (standard error 0.134, p 0.012).
+- **1984 alone:** −0.148.
+- **Phase 7's realized volatility by scored year** (its Figure 10): 19% timed and 14% buy-and-hold in 1984, against 2–9% in most later years.
+- **Every Phase 8 result** (Entry 9).
+
+**What had not been seen:** option (c)'s result on development data, and any of its yearly volatilities σ̂_y. Both are computed only after this entry (Entry 11).
+
+**Resolves** Entry 7, items 9 and 10. With this entry, nothing is left open before Phase 9.
+
+### 1. Item 9: years of unequal risk. Option (c), the user's call
+
+**The diagnosis (the user's): the problem is unequal risk, not one asset.**
+- 1984 dominates because its book, the undiversified market, carries far more risk than the later factor mixes.
+- If 1984's months carried the same risk as the others, adding them should shrink the standard error slightly: 0.134 × √(264/276) ≈ 0.131.
+- It rose instead, to 0.180: 1.37 times that. So 4% of the months added 37% to the uncertainty.
+
+**The three options (the user's judgement):**
+- **(a) Keep the rule.** It keeps the flaw: whichever book is riskiest decides the test. In a holdout of about 93 months, a one-asset year would be 13% of the data.
+- **(b) Score only years with at least two assets.** It counts assets, so it fixes only the one-asset case. A two-asset book where one asset dominates has the same problem.
+  - It deletes a year the strategy really traded.
+  - On development it is exactly the cut that turns "inconclusive" into "edge", so even sound logic would look like a rescue.
+- **(c) Weight each holding year equally.** It fixes the cause: every holding year gets the same risk budget, so no single year can decide the result.
+
+**The rule.**
+
+| Item | Rule |
+|---|---|
+| Scale | In each holding year y, the monthly excess returns of **both** runs, timed and buy-and-hold, are multiplied by s_y = 1 / σ̂_y |
+| σ̂_y | The annualized volatility (√252 × the standard deviation of daily returns) of the book held in year y at size 1: its recipe's weights times its assets' daily returns. It is measured over that recipe's own estimation window, the last 10 years of daily returns up to the year-end, the window its weights come from (Phase 4, Entry 6) *(my choice of window)*. It is known at the year-end |
+| Holding year | The months a recipe is held. For the monthly primary, that is the calendar year after its year-end; a partial last year is scaled the same way |
+| Statistic, test, readings | Entry 3's, unchanged, applied to the scaled returns: the Sharpe gain, Ledoit-Wolf with a Newey-West covariance (6 lags), one-sided at 5%, the three readings (edge; no meaningful edge if the upper bound is below 0.10; inconclusive) and the minimum detectable effect at 80% power |
+| Why it is fair | Both runs in a year are scaled by the same number, fixed at the year-end, so there is no look-ahead and no help to timing. Any constant multiple of s_y gives the same test |
+
+**Its role in the final test.**
+- **(c) decides the primary's reading.**
+- **(a), Entry 6's unscaled statistic, is reported beside it,** with its own gain, standard error, p and reading.
+- **What (c) does not change** *(my choice)*:
+  - every other metric of Entry 6 (CER and its test, the combination test, Sortino, drawdown, turnover, break-even, spanning α, the placebo) stays as defined there, on unscaled returns;
+  - the ETF track keeps Entry 6's statistic, because its book does not change composition from year to year.
+
+**Development is unchanged.** Phase 7's development verdict stays "inconclusive" under the pre-registered (a), and the dropped-1984 cut stays information, never the headline. Option (c) is computed on development only after this entry, as information (Entry 11).
+
+### 2. Item 10: the holdout's book. The real-time screen, the user's call
+
+- **Confirmed.** The final test continues Entry 6's real-time screen at every year-end, the holdout's included.
+- **Entry 6 supersedes Entry 1, Section 6's fixed asset list** (market, momentum, BAB): the later entry wins. The rest of Entry 1, Section 6's primary specification is unchanged (inverse-volatility weights set at each year-end, combine first, the 1.5 cap, Phase 6's forecast), as are Entry 6's rules.
+- **Why (the user's):**
+  - The screen is part of the frozen procedure; a fixed list would test a different strategy from the one developed.
+  - It is not peeking: each year-end screen sees only data up to that date, as a live investor would.
+- **Empty years** are cash and not scored (Entry 6). No extra rule is needed: a short scored sample gives a wide band, and the three readings return "inconclusive" on their own.
+- **Reported in Phase 9:** the survivor list at each year-end from 2018 (the book held in 2019) to 2025. Changes in it are part of the result.
+
+---
+
+## Entry 11 — 2026-10-19: option (c) on development (information)
+
+**Status.** Computed after Entry 10 fixed option (c), as Entry 10 required. It is information only and changes no rule and no development verdict. Phase 7's pre-registered development result stays inconclusive under (a). Source: `reports/phase8_year_weighted.csv`, `reports/phase8_year_scales.csv` (`python -m src.robustness.build`, step 8).
+
+| Primary, 276 months | Sharpe, timed / buy-and-hold | Gain | Standard error | One-sided p | One-sided 95% bounds | Minimum detectable effect | Reading |
+|---|---|---|---|---|---|---|---|
+| (a) every month as it is (pre-registered) | 0.746 / 0.733 | +0.013 | 0.180 | 0.471 | −0.283 to +0.309 | 0.448 | inconclusive |
+| (c) each holding year scaled to an equal risk budget | 0.881 / 0.666 | +0.214 | 0.137 | 0.059 | −0.011 to +0.440 | 0.341 | inconclusive |
+
+- **(c) also reads "inconclusive" on development.** Its p of 0.059 is just above the 5% level.
+- **σ̂_y:**
+  - 14.0% for 1984 (the market alone);
+  - 4.4–8.2% for the mixes of 1997–2018.
+- **1984's share of the pooled variance:**
+  - buy-and-hold: 15% under (a), 3% under (c);
+  - the timed run: 47% under (a), 13% under (c).
+- **Under (c), 1984 is no longer the timed run's largest year; 1997 is (19%).** 1984 still carries about three times an equal share (4%). (c) scales by buy-and-hold's ex-ante risk, and in 1984 the timed run itself levered to 1.5: that is the timing's own decision, which (c) is not meant to neutralize.
+- **(c) equalizes ex-ante risk, not realized risk.** 2000 and 2001 (realized buy-and-hold volatility 13–14%, against σ̂ of 4.9%) carry 17–19% of buy-and-hold's variance under (c).
+- **(c)'s standard error (0.137) is close to the 1997–2018 cut's (0.134),** as Entry 10's diagnosis implies.

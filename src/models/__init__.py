@@ -27,6 +27,9 @@ Development sample only. The slow forecasts are cached on disk (data/processed/p
 
 Phase 7 adds weekly versions (weekly.py): the same eight models at a 5-day horizon, forecast at each
 week's last trading day. forecasters(panel, down, freq="W-FRI") returns them.
+
+Phase 8 varies the frozen GARCH models (variations.py): one day ahead for daily rebalancing
+(frozen(gjr, freq="D")), and on a rolling estimation window (frozen(gjr, window=days)).
 """
 
 from __future__ import annotations
@@ -41,8 +44,8 @@ import pandas as pd
 
 from src import variance as v
 from src.engine import forecast as engine_forecast
-from src.engine.data import MONTH, WEEK
-from src.models import boost, filters, har, inputs, weekly
+from src.engine.data import DAY, MONTH, WEEK
+from src.models import boost, filters, har, inputs, variations, weekly
 from src.models.inputs import schedule
 
 # ---------------------------------------------------------------- rules
@@ -79,6 +82,9 @@ boost_fits = _cached(boost.boost_fits)
 garch_weekly = _cached(weekly.garch, also=(filters, boost))
 har_weekly = _cached(weekly.har_fits, also=(filters, boost))
 boost_weekly = _cached(weekly.boost_fits, also=(filters, boost))
+# Phase 8: the GARCH models one day ahead, and on rolling estimation windows (variations.py).
+garch_daily = _cached(variations.garch_daily, also=(filters,))
+garch_window = _cached(variations.garch_fits_window, also=(filters,))
 
 
 def exog(panel: pd.DataFrame, p: pd.Series) -> pd.DataFrame:
@@ -127,6 +133,24 @@ def forecasters(panel: pd.DataFrame, down: bool, freq: str = MONTH) -> dict[str,
         if f.__name__ == "<lambda>":
             f.__name__ = name
     return fs
+
+
+def frozen(gjr: bool, freq: str = MONTH, window: int | None = None) -> Callable[[pd.Series], pd.Series]:
+    """M3 (gjr=True) or M2 as an engine forecaster under one Phase 8 variation: rebalancing monthly,
+    weekly or daily (DAY: one day ahead from the month-end fits), or, monthly only, refit on the last
+    `window` trading days instead of all of them. With neither changed it is forecasters()'s M3 or M2."""
+    if window is not None:
+        if freq != MONTH:
+            raise ValueError("a rolling window is a monthly variation")
+        f = lambda p: garch_window(p, gjr, window)[0]
+    elif freq == DAY:
+        f = lambda p: garch_daily(p, gjr, garch_fits(p, gjr)[1])
+    elif freq == WEEK:
+        f = lambda p: garch_weekly(p, gjr, garch_fits(p, gjr)[1])
+    else:
+        f = lambda p: garch_fits(p, gjr)[0]
+    f.__name__ = f"{'M3' if gjr else 'M2'}_{freq}" + (f"_window_{window}" if window else "")
+    return f
 
 
 def oracle(p: pd.Series) -> pd.Series:

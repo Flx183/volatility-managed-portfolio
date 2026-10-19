@@ -241,3 +241,62 @@ runs.metrics(res, periods)                                     # Sharpe, CER, So
 ```bash
 python -m src.walkforward.build      # about 35 minutes on 10 cores the first time (weekly forecasts); a minute once cached
 ```
+
+
+## Phase 8: Robustness checks
+
+Is the result sturdy or fragile? Each check changes one thing from the chosen specification, and every outcome is recorded (`src/robustness/`, report `reports/phase8_robustness.ipynb`, rules in PREREGISTRATION Entry 8, outcome in Entry 9). Development sample only. No check replaces the primary test: they map how the result moves.
+
+Every check runs on three bases:
+- **the primary:** Phase 7's screened book, all 276 months;
+- **the primary over 1997–2018 only:** without the market-only year 1984 (information);
+- **Phase 6's fixed book:** market + momentum + BAB, 1950–2018 (information). The plan's checks were written for this book.
+
+| Check | Variations |
+|---|---|
+| Subperiods | 1926–1962, 1963–1990, 1991–2018 |
+| Rebalance frequency | monthly, weekly, daily (the engine now takes trading-day books; M3 one day ahead) |
+| Estimation window | expanding, rolling 10 and 20 years (GARCH fit and c_t) |
+| Leverage cap | 1.0, 1.5, 2.0, none |
+| Timing rule | inverse variance, inverse volatility, downside volatility |
+| Combine order | time the mix, or time each factor (own forecast, c_t and cap) and then combine |
+| Leave one out | drop each asset the book holds |
+| Costs | 0, 5, 10, 20, 30 bp a trade on every instrument, plus borrowing; the break-even |
+| Placebo | 1,000 shuffled forecasts |
+
+Each check gets one verdict against its base: **holds** (same reading throughout), **sign holds** (the reading changes, the sign does not), or **flips** (some gain changes sign).
+
+| Base | Gain | Verdicts | The change most likely to break it |
+|---|---|---|---|
+| Primary, 276 months | +0.013, inconclusive | 6 checks hold; costs and leave-one-out flip | negative from 5 bp (break-even 3 bp) and without BAB; placebo fails (86%) |
+| Primary, 1997–2018 | +0.30, edge | 5 hold; costs and leave-one-out keep their sign | without BAB +0.07; inconclusive from 20 bp (break-even 47 bp) |
+| Fixed book | +0.36, edge | 7 hold; subperiods keep their sign | cap 1.0 still +0.28 (p 0.003); 30 bp + borrowing +0.18 (p 0.04); no edge in 1950–1962 (+0.03) |
+
+- **The fixed book's edge is sturdy, and it is not just leverage.** It survives no leverage, 30 bp a trade and dropping any factor. Its market + momentum twin, the ETF track's paper version, still gains +0.19.
+- **The primary as registered is fragile in sign.** Its reading stays "inconclusive" everywhere except where 1984 is removed. It sits at the low point of its neighbourhood: every frequency, window, cap, rule and order change raises its gain.
+- **Faster rebalancing raises every paper gain, but costs more.** Daily: +0.66 on the fixed book, with turnover 20 a year and break-even 17 bp, against 64 bp monthly. Part of the daily gain may be stale-price autocorrelation in paper factors (Entry 9, Section 3).
+- **Crises (four, day by day).** The rule cut risk before the worst days when volatility built up first (2000–2002, 2008–2009: 11–29% of buy-and-hold's loss on them). It cut only after when the crash came out of calm (October 1929, October 1987: the fixed book took 91% of the loss).
+  - The market timed alone missed most rebounds (+44% against +180% after 1932).
+  - The mixes and momentum did not, because their rebound was a momentum crash. Momentum lost 46% in March–May 2009; the frozen rule, at a size of 0.06, lost 2%.
+
+**Decided before the holdout (PREREGISTRATION Entries 10–11, the user's calls).**
+- **Holding years of unequal risk.** In the holdout, each holding year's monthly excess returns, timed and buy-and-hold alike, are scaled by 1/σ̂_y, where σ̂_y is buy-and-hold's volatility over that year's 10-year recipe window, known at the year-end. This option (c) decides the reading, and the pre-registered unscaled test (a) is reported beside it.
+- **The holdout's book.** The final test continues the real-time screen; Entry 6 supersedes Entry 1's fixed asset list.
+- **(c) on development, computed after the rule was fixed (information).** Gain +0.214 (p 0.059), inconclusive, against (a)'s +0.013 (p 0.471). 1984's share of the timed run's variance falls from 47% to 13%. Development stays inconclusive under (a).
+
+```python
+from src.data.load import load_dev
+from src.engine.data import DAY
+from src.robustness import checks, crises
+from src.walkforward import runs
+
+panel = load_dev()
+rec = checks.recipes(panel, "fixed")                          # or "screened" with the survivors; drop="bab" leaves one out
+book, res, periods = checks.run(panel, rec, {"freq": DAY})    # one change: freq, window, max_size, rule, order or kappa
+runs.metrics(res, periods, checks.whole_months(book, res))    # the robustness row
+crises.questions(crises.path(book, res, periods), crises.span(panel, "2007", "2009"))   # the crisis questions
+```
+
+```bash
+python -m src.robustness.build      # about 50 minutes on 10 cores the first time (new GARCH walk-forwards); a minute once cached
+```

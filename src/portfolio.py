@@ -171,14 +171,15 @@ def vol_match(mon: pd.DataFrame) -> float:
 
 # ---------------------------------------------------------------- recipes and returns
 
-def recipes(panel: pd.DataFrame, track: str) -> pd.DataFrame:
+def recipes(panel: pd.DataFrame, track: str | dict) -> pd.DataFrame:
     """One recipe per year-end and mix version, each from data up to that year-end only.
 
+    track: a key of TRACKS, or a spec of the same form (Phase 8 drops one asset at a time).
     Columns: w_<asset> mix weights, beta_<asset> hedge ratios, pos_<instrument> positions in the
     traded instruments per unit of serving size, c, the assets dropped as duplicates, and the
     correlations behind that decision (rho_<a>_<b> on all months, crisis_<a>_<b> on crisis months).
     """
-    spec = TRACKS[track]
+    spec = TRACKS[track] if isinstance(track, str) else track
     cols, hedge = spec["assets"], spec["hedge"]
     r = panel[cols].dropna()
     mkt_rv = v.monthly_table(panel["mkt"])["rv"]

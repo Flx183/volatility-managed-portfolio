@@ -12,6 +12,8 @@ Its results are an upper bound, as in Phase 4 (PREREGISTRATION Entry 6).
     recipes(panel, survivors)        Phase 4 steps 1-2 on each list: duplicates, then the four mixes
     book(panel, rec, method, freq)   positions per holding month or week (no row in a year the screen
                                      left empty: the account is in cash and the period is not scored)
+    year_scale(panel, rec, method)   option (c) of Entry 10: 1 / the volatility each holding year's book
+                                     had over its recipe's 10-year window
 """
 
 from __future__ import annotations
@@ -68,6 +70,22 @@ def recipes(panel: pd.DataFrame, assets: pd.Series) -> pd.DataFrame:
                          "dropped": "; ".join(f"{a} ({why})" for a, why in dropped.items()),
                          "window_start": win.index[0], **w.add_prefix("w_")})
     return pd.DataFrame(rows).set_index(["asof", "method"])
+
+
+def year_scale(panel: pd.DataFrame, rec: pd.DataFrame, method: str) -> pd.Series:
+    """Option (c) of PREREGISTRATION Entry 10: for each holding year, s_y = 1 / σ̂_y. σ̂_y is the annualized
+    volatility (√252 x daily standard deviation) of the book held that year at size 1, its recipe's weights
+    times its assets' daily returns, over the recipe's own estimation window (the last 10 years up to the
+    year-end). Known at the year-end. Index: the holding year (the year after the recipe's year-end)."""
+    w = rec.xs(method, level="method")
+    out = {}
+    for asof, row in w.iterrows():
+        wt = row.filter(regex="^w_").astype(float)
+        wt.index = wt.index.str.removeprefix("w_")
+        wt = wt[wt != 0]
+        p = panel.loc[pd.Timestamp(row["window_start"]):asof, wt.index].dropna() @ wt
+        out[asof.year + 1] = 1 / (p.std() * np.sqrt(252))
+    return pd.Series(out, name="scale").rename_axis("year")
 
 
 def opening_trades(index: pd.DatetimeIndex, freq: str) -> pd.Series:

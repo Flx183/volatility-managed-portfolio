@@ -367,3 +367,46 @@ def test_the_bootstrap_p_value_is_small_for_a_clear_gain_and_not_for_none():
     assert stats.bootstrap_p(stat, draws)[0] < 0.01
     null = rng.normal(0, 0.01, 300)
     assert stats.bootstrap_p(np.array([null.mean()]), (C @ null / 300)[:, None])[0] > 0.01 or abs(null.mean()) > 0.0015
+
+
+# ---------------------------------------------------------------- option (c), Entry 10
+
+def test_year_scale_is_one_over_the_books_volatility_over_its_recipe_window():
+    panel = _panel()
+    surv = _survivors(panel, {1992: ["mkt"], 1993: ["mkt", "bab"]})
+    rec = screened.recipes(panel, surv)
+    s = screened.year_scale(panel, rec, "inv_vol")
+    assert list(s.index) == [1993, 1994]
+    row = rec.loc[(pd.Timestamp("1993-12-31"), "inv_vol")]
+    win = panel.loc[row["window_start"]:"1993-12-31", ["mkt", "bab"]]
+    p = win @ row[["w_mkt", "w_bab"]].astype(float).to_numpy()
+    assert s[1994] == pytest.approx(1 / (p.std() * np.sqrt(252)), rel=1e-12)
+    assert s[1993] == pytest.approx(1 / (panel.loc[rec.loc[(pd.Timestamp("1992-12-31"), "inv_vol"), "window_start"]:"1992-12-31", "mkt"].std() * np.sqrt(252)), rel=1e-12)
+
+
+def test_year_scale_uses_only_data_up_to_each_year_end():
+    panel = _panel()
+    surv = _survivors(panel, {1992: ["mkt", "bab"], 1993: ["mkt", "bab"]})
+    noisy = panel.copy()
+    noisy.loc["1993-01-01":, FACTORS] *= 5
+    a = screened.year_scale(panel, screened.recipes(panel, surv), "inv_vol")
+    b = screened.year_scale(noisy, screened.recipes(noisy, surv), "inv_vol")
+    assert a[1993] == b[1993] and a[1994] != b[1994]
+
+
+def test_year_weighting_scales_both_runs_alike_and_takes_the_weight_off_a_wild_year():
+    rng = np.random.default_rng(0)
+    months = pd.period_range("1990-01", "2001-12", freq=MONTH)
+    vol = np.where(months.year == 1990, 0.10, 0.01)                    # one year ten times riskier
+    b = pd.Series(rng.normal(0.004, 1, len(months)) * vol, months)
+    m = pd.DataFrame({"excess": 0.7 * b + rng.normal(0.001, 0.3, len(months)) * vol, "bench_excess": b})
+    flat = pd.Series(3.0, index=range(1990, 2002))
+    same = runs.year_weighted(m, flat)
+    assert np.allclose(same["excess"] / m["excess"], 3.0) and np.allclose(same["bench_excess"] / m["bench_excess"], 3.0)
+    assert ev.sharpe_gain_test(same.assign(size=1.0))["gain"] == pytest.approx(ev.sharpe_gain_test(m.assign(size=1.0))["gain"], rel=1e-10)
+    scale = pd.Series(np.where(np.arange(1990, 2002) == 1990, 10.0, 100.0), index=range(1990, 2002))   # 1 / ex-ante vol
+    w = runs.year_weighted(m, scale)
+    share = lambda x: (x[x.index.year == 1990] ** 2).sum() / (x ** 2).sum()
+    assert share(m["bench_excess"]) > 0.7 and share(w["bench_excess"]) < 0.2
+    with pytest.raises(ValueError, match="no scale"):
+        runs.year_weighted(m, scale.drop(1995))
