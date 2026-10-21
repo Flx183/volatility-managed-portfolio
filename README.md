@@ -309,3 +309,38 @@ crises.questions(crises.path(book, res, periods), crises.span(panel, "2007", "20
 ```bash
 python -m src.robustness.build      # about 50 minutes on 10 cores the first time (new GARCH walk-forwards); a minute once cached
 ```
+
+
+## Phase 9: Final holdout
+
+One honest, untouched test, run once on the sealed holdout (January 2019 to the snapshot's last day, 31 August 2026), with code, models, parameters and cutoffs frozen before it was opened (`src/holdout/`, rules in PREREGISTRATION Entry 13). The walk-forward results of Phases 6–8 were reused to choose models, so they are no longer fully out of sample; the holdout never was.
+
+- **What runs:** the primary test (the real-time screened book, M3, inverse-variance timing, monthly; option (c) decides its reading, the unscaled (a) beside it), Phase 7's best variant (M0, downside volatility, shrunk mean-variance, weekly), the ETF track after costs (SPY alone with M2, SPY + MTUM's tilt with M3), and Phase 6's fixed book as information.
+- **How:** the development walk-forward continued on the joined panel, so each decision reads only data up to its own close and the account carries its December 2018 position into 2019. The paper books end in July 2026, because AQR's BAB file ends a month before the rest.
+- **Checks:** every run reproduces its Phase 7 run exactly on the development months, so appending the holdout changes nothing before it.
+- **Then:** the 2020 and 2022 crisis case studies, with Phase 8's three questions.
+- **What it can tell:** about 92 months is short. Lo's (2002) standard error of an annual Sharpe ratio of 0.5 over 92 months is 0.36, so its 95% interval is 0.5 ± 0.71. The holdout cannot prove a small edge, but it can catch a large failure.
+
+```bash
+python -m src.holdout.build --rehearse   # the same build on development data only (pseudo-holdout from 2011); never opens the holdout
+python -m src.holdout.build              # the final test, run once: refuses to start again once reports/phase9_results.csv exists
+```
+
+**Result (PREREGISTRATION Entry 14; report `reports/phase9_holdout.ipynb`; tables `reports/phase9_*.csv`).** The holdout was opened once, on 2026-10-20. Every run reproduced Phase 7 exactly on the development months. The screen held market, momentum and BAB at every year-end, with profitability for 2020 and 2022.
+
+| Book | Months | Sharpe, timed / buy-and-hold | Gain (p) | Reading | Plan's verdict |
+|---|---|---|---|---|---|
+| **Primary**, (c) (decides) | 91 | 0.744 / 0.656 | **+0.088 (0.31)** | **inconclusive** (minimum detectable effect 0.45) | **consistent with Cederburg et al.** (development did not win) |
+| Primary, (a) | 91 | 0.897 / 0.855 | +0.041 (0.41) | inconclusive | — |
+| Best variant, (c) | 91 | 0.651 / 0.765 | −0.114 (0.74) | inconclusive | consistent with Cederburg et al. |
+| ETF track: SPY alone, after costs | 92 | 0.790 / 0.891 | −0.102 (0.73) | inconclusive | consistent with Cederburg et al. |
+| ETF track: SPY + MTUM tilt, after costs | 92 | 0.482 / 0.468 | +0.015 (0.47) | inconclusive | consistent with Cederburg et al. |
+| Phase 6's fixed book (information) | 91 | 0.857 / 0.777 | +0.080 (0.32) | inconclusive | development won, holdout flat: too short to tell |
+
+- **No edge, and no large failure.** Every book is inconclusive. The final test's gain is a fifth of what 91 months can detect.
+- **The development gains shrank.** Phase 6's +0.355 became +0.08, and the family's best variant fell from +0.23 to −0.11.
+- **Timing cut risk reliably.** The primary ran at 3.0% volatility against 6.4% (drawdown −2.8% against −6.8%), and SPY's drawdown fell from 24% to 15%.
+- **But it held too little.** The mix was more volatile than the history its scale was set on, so the primary's mean size was 0.47. It earned less: CER 2.5% against 4.4%. The placebo failed (69.5%).
+- **Crises.**
+  - 2020: risk was cut before most of the worst days. The primary held 0.28 and SPY 0.25 on them, taking 22–24% of the loss. Most of the rebound was then missed: SPY gained +19% against +77% in the year after the trough.
+  - 2022: risk was cut early (SPY from 1.3 to 0.37). SPY ended the window slightly ahead (+1.3% against −1.5%).

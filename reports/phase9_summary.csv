@@ -1,0 +1,28 @@
+,value
+mode,final test
+commit,fe34bb35e3e7afbfa043b151a712ffbf6281439d
+tags,v1-frozen
+reopen_reason,
+panel_first,1926-07-01
+panel_last,2026-08-31
+holdout_first,2019-01-01
+paper_end,2026-07-31
+etf_end,2026-08-31
+access_log,"2026-10-20T03:26:25+00:00,felixtanwira,panel,/Users/felixtanwira/Documents/GitHub/volatility-managed-portfolio/src/holdout/build.py | 2026-10-20T03:26:25+00:00,felixtanwira,etf_ohlc,/Users/felixtanwira/Documents/GitHub/volatility-managed-portfolio/src/holdout/build.py"
+months_primary,91
+months_best,91
+months_spy,92
+months_etf,92
+months_fixed,91
+first_primary,2019-01
+first_best,2019-01
+first_spy,2019-01
+first_etf,2019-01
+first_fixed,2019-01
+last_primary,2026-07
+last_best,2026-07
+last_spy,2026-08
+last_etf,2026-08
+last_fixed,2026-07
+seconds,73
+lo_example,0.36303371504705945

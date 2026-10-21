@@ -73,6 +73,13 @@ PINNED = {
     "src.robustness.crises.BSC": ("99867ee", "672a6a5d846ed37f"),
     "src.robustness.crises.EPISODES": ("99867ee", "13b9e87ed473ed38"),
     "src.robustness.crises.MOMENTUM_CRASHES": ("99867ee", "3fd7298c5267dd7c"),
+    # Phase 9 (Entry 13), fixed before the holdout was opened
+    "src.holdout.HOLDOUT_RULES": ("Entry 13", "5e736a5c3270b90d"),
+    "src.holdout.EPISODES": ("Entry 13", "5887421254149241"),
+    "src.holdout.HOLDOUT_OUTCOME": ("Entry 13", "2d6b02ba6bcadf19"),
+    "src.holdout.VERDICT": ("Entry 13", "9459d3b4cebc9e16"),
+    "src.holdout.DEVELOPMENT": ("Entry 13", "c6d96d90002a6b24"),
+    "src.holdout.REHEARSAL": ("Entry 13", "8b8faa81bad19972"),
 }
 # Wrapped read-only (the rest sit in files the forecast cache is keyed on: pinned, not wrapped).
 READ_ONLY = ["src.screen.SCREEN_RULES", "src.screen.ETF_FOR", "src.portfolio.PORTFOLIO_RULES", "src.portfolio.TRACKS",
@@ -81,7 +88,9 @@ READ_ONLY = ["src.screen.SCREEN_RULES", "src.screen.ETF_FOR", "src.portfolio.POR
              "src.walkforward.WF_RULES", "src.walkforward.RULES", "src.walkforward.FAMILY", "src.walkforward.FREQS",
              "src.walkforward.runs.MIN_PAIRS", "src.walkforward.stats.BOOT", "src.walkforward.stats.COMBINATION",
              "src.robustness.ROBUST_RULES", "src.robustness.CHECKS", "src.robustness.BASES",
-             "src.robustness.crises.EPISODES", "src.robustness.crises.MOMENTUM_CRASHES", "src.robustness.crises.BSC"]
+             "src.robustness.crises.EPISODES", "src.robustness.crises.MOMENTUM_CRASHES", "src.robustness.crises.BSC",
+             "src.holdout.HOLDOUT_RULES", "src.holdout.EPISODES", "src.holdout.HOLDOUT_OUTCOME", "src.holdout.VERDICT",
+             "src.holdout.DEVELOPMENT", "src.holdout.REHEARSAL"]
 
 
 def _table(name):

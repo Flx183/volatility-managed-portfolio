@@ -1067,3 +1067,277 @@ The state before any change is tagged `phase8-prereview` (commit 99867ee). Each 
 - **`requirement.txt`** pins the versions that produced Phases 6–8 and the rebuilt cache (Python 3.12.1).
 - **The forecast caches are cleared.** Phase 9 starts from an empty cache.
 - **For Phase 9.** If a held factor lacks returns inside a holding period, for example because of AQR's publication lag at the end of the data, the monthly engine stops and names the month: `holding_periods` marks the period missing, and `simulate` refuses it. It does not score the month. This was already so; it is recorded here because recent data is where such gaps appear.
+
+---
+
+## Entry 13 — 2026-10-20: Phase 9, the final test on the holdout
+
+**Status.** Written before the holdout is opened; it has never been opened. What was known when it was written:
+- every development result (Entries 1–12);
+- the holdout's dates and completeness from Phase 1's report: 1,926 trading days, 2 January 2019 to 31 August 2026, no missing day in any series, and AQR's BAB file ending on 31 July 2026, a month before every other series;
+- a rehearsal of this entry's build on development data only (Section 9).
+
+The rules in `src/holdout/__init__.py` (`HOLDOUT_RULES`, `EPISODES`, `HOLDOUT_OUTCOME`, `VERDICT`, `DEVELOPMENT`) were written before the rehearsal ran. After it, only the layout of the results table changed (Section 9). Every rule marked *(my choice)* was set with this entry by Claude, not by the plan or the user.
+
+**Resolves** the plan's Phase 9: freeze everything, run once on January 2019 to today (the primary test, the frozen best variant and the ETF track), report the result whatever it is, then the 2020 and 2022 crisis case studies.
+
+### 1. The freeze, and the one run
+
+- **Frozen.** Code, models, parameters and cutoffs are fixed with this entry, before the holdout is opened. Every rule table is read-only and pinned by fingerprint (`test/test_frozen_rules.py`).
+- **The run.** `python -m src.holdout.build` opens the holdout through `load_holdout(confirm="phase 9 final test")`, once for the panel and once for the ETF table. It runs once, as the final test.
+- **If the build stops after the holdout is opened,** the fix and the reason for reopening go in a dated entry. No rule, model or cutoff changes, and nothing seen in the holdout informs a choice.
+- **Forecasts are computed fresh.** The cache is keyed on each series, and the holdout's series are longer than any development series, so no holdout forecast is read from a development run.
+
+### 2. Data
+
+| Item | Rule |
+|---|---|
+| The holdout | The sealed snapshot, 2 January 2019 to 31 August 2026, checked against its hash when opened. The plan's "today" is read as the snapshot's last day *(my reading)*: new data would change the sealed holdout, which Entry 1 allows only through a dated entry before anything reads it |
+| The panel | The development rows, then the holdout's, in one table, so every expanding window runs through the boundary |
+| Where the paper books end | The last month in which every factor has a return on every trading day: July 2026, because AQR's BAB ends on 31 July. This holds whether or not BAB is held in 2026 *(my choice: the end is fixed by the data's dates, not by the screen's outcome)* |
+| Where the ETF track ends | The last month SPY and MTUM are complete: August 2026 |
+| Year-ends | The last trading day of December. Phase 3's `year_ends` would also treat the data's last day as a year-end; it is not one |
+
+### 3. The walk-forward continues
+
+- **Every run is the development walk-forward continued** (Entries 4–6, 10), by the same code on the joined panel. Each decision reads only data up to its own close:
+  - the screen at each year-end (filters 1, 3 and 6; level φ; 120 months);
+  - the recipe (duplicates, then the mix from the last 10 years);
+  - the refit and the forecast;
+  - c_t, expanding, with its pairs from all history, development included;
+  - the size.
+- **The account carries its December 2018 position into January 2019.** January's trade is a rebalance, not an entry from cash. This sets the ETF track's January 2019 cost.
+- **Scored months.** Every month from January 2019 that the run holds on every trading day. For the paper books that is January 2019 to July 2026 (91 months), unless a year-end screen admits nothing (cash, not scored: Entry 6). For the ETF track it is January 2019 to August 2026 (92).
+- **Every month is scored from the daily ledger** (Entry 12, `src/robustness/ledger.py`). For a monthly book this is the engine's return bit for bit. For the weekly best variant, each day's return goes to its own calendar month *(my choice: Entry 12's fix of finding 4. Phase 7's rule, each week in the month of its closing trade, is used only in the reproduction check of Section 5)*.
+
+### 4. What runs, and what decides each reading
+
+| Book | Specification | Its reading | Role |
+|---|---|---|---|
+| **Primary** | Entry 6, Section 3: the real-time screened book; inverse-volatility mix; M3 GJR-GARCH; inverse-variance timing; monthly; cap 1.5; c_t from 120 pairs; no costs | **(c)** (Entry 10); (a) beside | **the final test**; an upper bound (paper factors, no costs) |
+| Best variant | Phase 7's family member with the largest development Sharpe gain (Entry 6, Section 7's "best"; `reports/phase7_summary.csv`): M0, downside-volatility timing (Entry 6, Section 4), shrunk mean-variance mix, weekly; cap 1.5; c_t from 520 weekly pairs; no costs | (c), with (a) beside *(my choice: its book changes composition the way the primary's does)* | secondary: the plan's "frozen best variant" *(my reading: the only variant the record calls best)*; an upper bound |
+| ETF track: SPY alone | Entry 6, Section 8: M2 from the 12th month, c_t from 36 pairs, SPY's costs | (a) (Entry 10) | tradeable secondary |
+| ETF track: SPY + MTUM tilt | Phase 4's ETF recipe, inverse-volatility mix, M3 from the 12th month, c_t from 36 pairs, ETF costs with the 0.25% SPY short fee | (a) | tradeable secondary |
+| Phase 6's fixed book | Market + momentum + BAB on Phase 4's recipes, the primary's specification. Run on its holdout periods only, from the 2018 year-end's recipe on *(my choice, for compute)*. Each recipe's forecast and c_t come from its mix's whole history, so its decisions equal the full book's | (a) | **information.** Phase 6's development edge (+0.355) meets data it never saw |
+
+- **The statistic** for every book is Entry 3's: the Sharpe gain over buy-and-hold, by Ledoit-Wolf with a Newey-West covariance (6 lags), one-sided at 5%. Its three readings (edge; no meaningful edge if the one-sided 95% upper bound is below 0.10; inconclusive), with the minimum detectable effect at 80% power.
+- **(c) and the holding year.** Each holding year's monthly excess returns, both runs, are scaled by 1/σ̂_y (Entry 10; `screened.year_scale` with the book's own mix). The partial 2026 year is scaled like any other. For the weekly variant, a month's scale is its calendar year's.
+- **Reported with every book, on the unscaled holdout months:**
+  - Entry 6's metrics: both Sharpe ratios and volatilities; CER; Sortino; maximum drawdown; mean; mean size and share capped; turnover; break-even κ; spanning α;
+  - the CER test (stationary bootstrap, mean blocks 6 and 12, the larger p);
+  - the real-time combination test, trained at each holdout month on every scored month before it, development included *(my choice: a live investor uses all of the past; trained on the holdout alone, 92 months leave no out-of-sample month)*. The SPY + MTUM book (20 development months) and the fixed book (run from 2019) have no out-of-sample month;
+  - Lo's (2002) standard error of each Sharpe ratio (information; Section 8);
+  - each holding year: its assets, both runs' compounded excess returns and volatilities, the mean size, σ̂_y.
+- **The placebo** (information): the primary only, Phase 7's 1,000 shuffled forecasts (seeds 0–999), read on the holdout months.
+- **The survivors** at each year-end from 2018 to 2025, with each mix's weights, duplicates dropped and σ̂ (Entry 10, Section 2).
+
+### 5. Checks the build runs
+
+Any failure is reported in `reports/phase9_checks.csv` and the outcome entry, not hidden.
+- **Appending the holdout changes nothing before it.** On every month both have, each run is compared with its Phase 7 run:
+  - the primary: every numeric column of the engine's output;
+  - the best variant, under Phase 7's scoring, except Phase 7's last month, whose last week the development data cut short at 31 December 2018;
+  - both ETF books.
+
+  The expected gap is 0.
+- **The screen and the recipes.** The survivors and the mix weights at every development year-end must equal Phase 7's.
+- **The holdout's hash.** `load_holdout` checks it.
+
+### 6. The 2020 and 2022 crises
+
+| Episode | Trough: the market's lowest close (total return) in | Peak: its highest close from … up to the trough |
+|---|---|---|
+| 2020 | 2020 | 1 January 2020 |
+| 2022 | 2022 | 1 January 2021 |
+
+- **Why a new definition** *(my choice)*:
+  - Entry 8's rule (the peak is the highest close of the first year) fails in 2020, when the market ended the year at a new high. So the trough is found first, then the peak before it.
+  - 2022's search starts in 2021, as 2008's started in 2007, in case the broad market peaked in late 2021.
+  - These are calendar choices. No holdout return was read to make them.
+- **The window, the questions and the panels are Entry 8's.** The window runs from 6 months before the peak to 12 months after the trough. The three questions are unchanged:
+  - before or after the worst days;
+  - the rebound;
+  - the cap and costs.
+
+  The panels show four rows: price, σ̂, size, and growth against buy-and-hold.
+- **Runs shown,** each if it holds a position on every trading day of the window:
+  - the primary, the best variant and the fixed book (as run, no cap, cap 1.0, 30 bp a trade on every instrument);
+  - SPY alone and SPY + MTUM (as run, no cap, cap 1.0; their own costs);
+  - momentum alone under the frozen rule, and momentum and the market alone under Barroso and Santa-Clara's rule (Entry 8's versions).
+
+### 7. Reading the outcome: the plan's table, fixed here
+
+- **The holdout column** comes from each book's deciding reading:
+  - "edge" means **wins**;
+  - "inconclusive" means **flat, slightly negative or too short to tell**;
+  - "no meaningful edge" means **clearly negative**. With the holdout's standard error near 0.2, this needs a gain below about −0.23.
+- **The development column** is "wins" only if the book's own registered development test read "edge":
+
+| Book | Development result (registered) | Development |
+|---|---|---|
+| Primary | Phase 7: +0.013, p 0.471, inconclusive (Entry 7). Option (c), information: +0.214, p 0.059 (Entry 11) | fails |
+| Best variant | Phase 7: +0.234, raw p 0.089, inconclusive; Romano-Wolf p 0.43; deflated Sharpe ratio 0.67 | fails |
+| ETF track: SPY alone | +0.165, p 0.13, inconclusive | fails |
+| ETF track: SPY + MTUM | +0.088, p 0.30, inconclusive (20 months) | fails |
+| Fixed book (information) | +0.355, p 0.0002, edge (Entries 5, 7), on an asset list chosen with the whole development sample | wins |
+
+| Development | Holdout | Verdict (the plan's) |
+|---|---|---|
+| wins | wins | evidence of a real edge; still modest, given the short holdout |
+| wins | flat, slightly negative or too short to tell | inconclusive: too short to tell; report both |
+| wins | clearly negative | likely overfit, or the edge faded; report it |
+| fails | anything | consistent with Cederburg et al.; report it |
+
+**What this fixes before the holdout is seen.**
+- **The primary and every secondary book read "consistent with Cederburg et al."**, whatever the holdout shows, because none won on development. Their holdout numbers are still reported in full, with the minimum detectable effect.
+- **Only the fixed book's verdict depends on the holdout,** and it is information.
+
+### 8. Expectations, written before the run
+
+- **Power is low.** The minimum detectable effect is about 0.46 at 92 months (Entry 3, Section 5).
+  - The plan's worked example: Lo's standard error of a Sharpe ratio of 0.5 over 92 months is 0.36 a year, so its 95% interval is 0.5 ± 0.71.
+  - The Sharpe gain's own standard error is smaller than either Sharpe ratio's, because the two runs move together.
+  - In Entry 3's simulations, a true gain like world A's read "inconclusive" 83% of the time at this length.
+- **A gain like Phase 6's (+0.36) would most likely read "inconclusive".** "No meaningful edge" needs timing to lose by about 0.2 or more.
+- **The primary and the fixed book may coincide.** In any year whose screen admits exactly market, momentum and BAB (as the 2018 year-end screen does), they hold the same recipe: their inverse-volatility weights agree to the last digit on the five development years where both held those three.
+
+### 9. The rehearsal
+
+`python -m src.holdout.build --rehearse` runs this build on development data only and never opens the holdout:
+- the pseudo-holdout starts on 1 January 2011;
+- BAB's last month (December 2018) is removed, as AQR's file ends a month early in the holdout;
+- the crises are 2011 (trough-first, from 1 January 2011) and 2015–2016 (from 1 January 2015).
+
+**What it checked.**
+- Every run reproduces its Phase 7 run with a largest gap of exactly 0 on every common month:
+  - the primary: 275 months, every one of the engine's 38 numeric columns;
+  - the best variant: 276 months;
+  - SPY alone: 263; SPY + MTUM: 20.
+- The screen's survivors equal Phase 7's at every year-end, and the recipe weights agree to 8 × 10⁻¹⁷.
+- The paper books end at November 2018 and the ETF track at December 2018, as the end rules say.
+- Runs that do not cover a crisis window are left out and named. The fixed book, run from 2011, is left out of the 2011 window, and SPY + MTUM out of both.
+
+**Its return statistics were printed and seen.** They are development months already inside Phases 7 and 8. They changed no rule:
+- primary (c) +0.065 (p 0.37), inconclusive;
+- best variant (c) −0.58, no meaningful edge;
+- SPY alone +0.088, inconclusive;
+- fixed book +0.124, inconclusive;
+- placebo 93.0%.
+
+**The one change after it:** the results table no longer repeats the unscaled test beside the `stat_` columns. That repeat carried Phase 8's "too short to read" label for samples under 60 months.
+
+### 10. Information only
+
+- the fixed book;
+- the placebo;
+- Lo's standard errors;
+- the combination test;
+- the crisis case studies;
+- each holding year's numbers.
+
+None of them changes a reading.
+
+---
+
+## Entry 14 — 2026-10-20: Phase 9 outcome, the final test
+
+**Status.** Written after the one run. Entry 13 is not edited, and no rule changed after the run. Sections 1–5 report the run under Entry 13's rules. Section 6 is information added after the results were seen; it is labelled as such and changes no reading.
+
+### 1. The run, and its checks
+
+- **The command.** `python -m src.holdout.build` ran once, on the code frozen with Entry 13, unchanged. It finished without error in 73 seconds.
+- **The opening.** The holdout was opened once, on 2026-10-20 at 03:26:25 UTC (the panel and the ETF table, as recorded in `reports/phase9_summary.csv`), and not reopened. The report notebook reads only the build's saved outputs.
+- **Appending the holdout changed nothing before it** (`reports/phase9_checks.csv`). Each run equals its Phase 7 run on every development month, with a largest gap of exactly 0:
+  - the primary: 276 months, all 38 numeric columns;
+  - the best variant: 276 months, Phase 7's scoring;
+  - SPY alone: 263 months; SPY + MTUM: 20 months.
+
+  The screen's verdicts at every development year-end match Phase 7's (0 differences in 651), and so do the recipe weights (largest gap 8 × 10⁻¹⁷).
+- **Where the data end.** The paper books end in July 2026 (BAB's last month) and score 91 months, January 2019 to July 2026. The ETF track ends in August 2026 and scores 92.
+- **After the run** *(the user's call)*: the git tag and the holdout's access log were removed, and the build's check for them was replaced by a refusal to run again once `reports/phase9_results.csv` exists. No computation changed.
+
+### 2. The holdout's book (Entry 10, Section 2)
+
+| Year-end | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|---|
+| Held in | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+| Survivors | mkt mom bab | mkt mom **rmw** bab | mkt mom bab | mkt mom **rmw** bab | mkt mom bab | mkt mom bab | mkt mom bab | mkt mom bab |
+| σ̂_y (inverse-volatility mix) | 7.2% | 4.2% | 9.0% | 5.5% | 9.7% | 9.7% | 9.8% | 9.8% |
+
+- **No duplicate was dropped, and no year was empty.**
+- **The primary equals Phase 6's fixed book in six of the eight years.** They differ only in 2020 and 2022, when the screen also admitted profitability.
+
+### 3. The one-shot numbers (`reports/phase9_results.csv`, `reports/phase9_verdict.csv`)
+
+| Book | Statistic | Months | Sharpe, timed / buy-and-hold | Gain | Standard error | One-sided p | One-sided 95% bounds | Minimum detectable effect | Reading |
+|---|---|---|---|---|---|---|---|---|---|
+| **Primary** | **(c), decides** | 91 | 0.744 / 0.656 | **+0.088** | 0.183 | **0.314** | −0.212 to +0.388 | 0.454 | **inconclusive** |
+| Primary | (a) | 91 | 0.897 / 0.855 | +0.041 | 0.182 | 0.410 | −0.257 to +0.340 | 0.451 | inconclusive |
+| Best variant | (c), decides | 91 | 0.651 / 0.765 | −0.114 | 0.180 | 0.736 | −0.411 to +0.183 | 0.449 | inconclusive |
+| Best variant | (a) | 91 | 0.844 / 0.959 | −0.115 | 0.139 | 0.796 | −0.345 to +0.114 | 0.347 | inconclusive |
+| ETF track: SPY alone, after costs | (a) | 92 | 0.790 / 0.891 | −0.102 | 0.169 | 0.726 | −0.379 to +0.176 | 0.420 | inconclusive |
+| ETF track: SPY + MTUM tilt, after costs | (a) | 92 | 0.482 / 0.468 | +0.015 | 0.179 | 0.467 | −0.279 to +0.309 | 0.444 | inconclusive |
+| Fixed book (information) | (a) | 91 | 0.857 / 0.777 | +0.080 | 0.170 | 0.319 | −0.200 to +0.360 | 0.424 | inconclusive |
+
+**Reported with them** (Entry 6's metrics, on the unscaled holdout months):
+
+| | Primary | Best variant | SPY alone | SPY + MTUM | Fixed book |
+|---|---|---|---|---|---|
+| Volatility, timed / buy-and-hold | 3.0% / 6.4% | 2.9% / 6.9% | 13.0% / 16.5% | 4.9% / 8.7% | 3.3% / 7.0% |
+| Mean size; share of months capped | 0.47; 0% | 0.41; 1% | 0.98; 21% | 0.69; 0% | 0.49; 0% |
+| CER (γ = 5), timed / buy-and-hold; CER test p | 2.5% / 4.4%; 0.98 | 2.2% / 5.4%; 1.00 | 6.0% / 7.9%; 0.75 | 1.8% / 2.2%; 0.61 | 2.5% / 4.2%; 0.93 |
+| Maximum drawdown, timed / buy-and-hold | −2.8% / −6.8% | −3.7% / −10.3% | −15.0% / −24.3% | −11.3% / −17.8% | −3.0% / −9.0% |
+| Turnover a year; break-even κ | 2.7; 5 bp | 9.2; 0 | 3.9; 0 | 2.6; 11 bp | 2.7; 11 bp |
+| Spanning α, a year (t) | +0.63% (0.9) | +0.27% (0.3) | +0.54% (0.2) | +0.46% (0.4) | +0.81% (1.1) |
+| Combination test: CER gain (p) | −0.03 points (0.52) | −2.1 points (0.87) | −1.2 points (0.74) | no out-of-sample month | no out-of-sample month |
+| Lo's standard error of each Sharpe ratio, timed / buy-and-hold | 0.37 / 0.37 | 0.37 / 0.37 | 0.37 / 0.37 | 0.36 / 0.36 | 0.37 / 0.37 |
+
+- **The placebo** (information): the primary's real α beats 69.5% of 1,000 shuffled forecasts on the holdout months, so it **fails** the 95% bar. Its real Sharpe gain beats 77.2% of the shuffled gains.
+
+### 4. The 2020 and 2022 crises (`reports/phase9_crises.csv`)
+
+| Episode | Peak → trough (market fall) | Before or after the worst days | The rebound | Over the window, timed / buy-and-hold |
+|---|---|---|---|---|
+| 2020 | 19 February → 23 March 2020 (−34.2%) | **Before most of them.** March's size was set at the 28 February close, after the first week of selling. On buy-and-hold's five worst days: primary 0.28 (22% of the loss), SPY 0.25 (24%), best variant 0.05 (4%) | **Missed.** SPY +19% (size 0.67) against +77%; primary +2% (size 0.12) against +12% | SPY +15% / +35%; primary +0.0% / +1.1%; momentum (frozen) +6% / −26% |
+| 2022 | 8 November 2021 → 14 October 2022 (−25.6%) | **Before.** Volatility built up first. SPY went from 1.29–1.37 to 0.37 on its five worst days (37% of the loss); the primary held 0.22 (22%) | **Partly missed.** SPY +11% (size 0.88) against +17% | SPY +1.3% / −1.5%; primary +1.6% / +4.4%; SPY + MTUM −10% / −15% |
+
+- **The cap and costs** moved no window by more than about 5 points:
+  - SPY with no cap: +16% instead of +15% in 2020;
+  - 30 bp a trade: the best variant's 2022 window went from +0.4% to −5.0%.
+- **Momentum's crash came in 2020's rebound.** Momentum at size 1 lost 32% in the 12 months after the trough; the frozen rule, at a size of 0.17, lost 7%.
+
+### 5. Reading (Entry 13, Section 7)
+
+| Book | Development | Holdout reading (statistic) | Holdout | The plan's verdict |
+|---|---|---|---|---|
+| **Primary (the final test)** | fails (+0.013, p 0.471) | inconclusive, +0.088, p 0.31 ((c)) | flat, slightly negative or too short to tell | **consistent with Cederburg et al.; report it** |
+| Best variant | fails (+0.234, Romano-Wolf p 0.43) | inconclusive, −0.114, p 0.74 ((c)) | flat, slightly negative or too short to tell | consistent with Cederburg et al.; report it |
+| ETF track: SPY alone | fails (+0.165, p 0.13) | inconclusive, −0.102, p 0.73 | flat, slightly negative or too short to tell | consistent with Cederburg et al.; report it |
+| ETF track: SPY + MTUM | fails (+0.088, p 0.30) | inconclusive, +0.015, p 0.47 | flat, slightly negative or too short to tell | consistent with Cederburg et al.; report it |
+| Fixed book (information) | wins (+0.355, p 0.0002) | inconclusive, +0.080, p 0.32 | flat, slightly negative or too short to tell | inconclusive: too short to tell; report both |
+
+**The final test's verdict: consistent with Cederburg et al. (2020).**
+- The primary did not beat buy-and-hold on development, and it does not on the holdout.
+- No book reads "edge", and none reads "no meaningful edge". The holdout catches no large failure and supports no edge.
+
+### 6. Information added after the run
+
+- **Why the primary held half of buy-and-hold.**
+  - In 2019–2026 the M3 forecast of the mix's volatility averaged 7.8% a year, against 5.3% in 1997–2018.
+  - c_t is set on that whole history, so the size averaged 0.47 and never reached the cap. In 2020 and 2022, the years that held profitability, it averaged 0.22 and 0.17.
+  - The Sharpe gain does not depend on size. CER and the drawdowns do, which is why the timed run earned less (CER 2.5% against 4.4%) and fell less (−2.8% against −6.8%).
+- **Each holdout gain sits below its development gain** under the same statistic, except the primary under (a), whose development gain 1984 had held near zero.
+  - The family's best variant fell from +0.234 to −0.115, from the best of 192 to below the primary, as Phase 7's deflated Sharpe ratio (0.67) had warned.
+  - The fixed book kept about a quarter of its development edge (+0.080 against +0.355). Its one-sided 95% upper bound (+0.36) just reaches the development estimate.
+- **Not a test.** These comparisons were made after the results were seen.
+
+### 7. In plain language
+
+- **Over 91 months out of sample, timing the factor mix by its forecast variance did not reliably beat holding it.**
+  - The Sharpe gain was +0.09 a year, against a minimum detectable effect of 0.45.
+  - The tradeable SPY version and the best development variant both lost about 0.1.
+- **What timing did, it did reliably:** it halved the risk and the drawdowns, and in 2020 and 2022 it cut size before most of the worst days.
+- **What it cost:** it held too little in a more volatile holdout, and it missed most of 2020's rebound.
+- **The holdout cannot rule out a modest true edge,** but the large development gains did not show up in it.
+
+Every paper result is an upper bound: paper BAB and profitability cannot be traded, and the paper books carry no costs.
