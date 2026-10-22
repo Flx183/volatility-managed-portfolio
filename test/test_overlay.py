@@ -4,6 +4,7 @@ variant has been run on real data (PREREGISTRATION Entry 16)."""
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.stats import norm
 
 from src import engine as e
 from src.engine import evaluation as ev, execution as ex, forecast, synthetic as syn
@@ -136,3 +137,60 @@ def test_the_users_calls_are_recorded_and_a2_is_gone():
     with pytest.raises(ValueError, match="unknown variant"):
         sizing.resize(pd.DataFrame({"size": [1.0]}, index=pd.period_range("2001-01", periods=1, freq="M")), "A2")
     assert ev.TEST_RULES["level"] == 0.05                             # the primary test's level, reused
+
+
+# ---------------------------------------------------------------- volatility stability (Entry 20)
+
+def _garch_world(years=100, seed=0, a=0.10, b=0.89, vol=0.16):
+    """A GARCH world with its true parameters: the daily panel, and each month's expected variance given the close
+    before it (the sum of the GARCH forecasts of its days' variances) and its first day's variance x its days."""
+    d = syn.garch(years=years, world="flat", seed=seed, a=a, b=b, vol=vol, start="1800-01-01")
+    g = d.groupby(d.index.to_period("M"))
+    first, n = g["sigma2"].first(), g.size()
+    L, phi = vol ** 2 / 252, a + b
+    expected = pd.Series([L * k + (s - L) * (1 - phi ** k) / (1 - phi) for s, k in zip(first, n)], index=first.index)
+    return d, expected, first * n, L
+
+
+def _true_run(d, month_var, k, L):
+    """Size = c / σ^k on the given monthly variance (row t: month t + 1's), no cap, no costs, through the engine."""
+    book = e.Book.single(d["x"], d["rf"], "x")
+    fc = lambda p: month_var.shift(-1).dropna().rename("forecast")
+    res = e.run(book, {1: "inv_vol", 2: "inv_var"}[k], forecaster=fc, c=(L * 21) ** (k / 2), max_size=None)
+    periods = ex.holding_periods(book)
+    return metrics.vol_stability_test(metrics.monthly_vol(book, res, periods, res.index))
+
+
+@pytest.fixture(scope="module")
+def world():
+    return _garch_world()
+
+
+def test_on_the_true_volatility_inverse_volatility_steadies_risk_and_inverse_variance_does_not(world):
+    """The user's derivation (Entry 20): ln σ_timed = ln c + (1 - k) x + e. With x the true expected volatility, e is
+    uncorrelated with x, so k = 1 leaves only Var(e) (R well below 1) and k = 2 leaves Var(x) + Var(e), as buy-and-hold
+    does (R close to 1). Through the engine, with drift inside each month; no cap, so the test checks the measure."""
+    d, expected, _, L = world
+    k1, k2 = _true_run(d, expected, 1, L), _true_run(d, expected, 2, L)
+    assert k1["R"] < 0.75 and k1["reading"] == "edge"                  # 0.674 here
+    assert abs(k2["R"] - 1) < 0.03 and k2["reading"] != "edge"         # 1.001 here
+
+
+def test_inverse_variance_on_a_forecast_that_ignores_mean_reversion_makes_risk_less_steady(world):
+    """The derivation's assumption matters. The next day's variance x the month's days ignores mean reversion within
+    the month, so its error falls when it rises (correlation about -0.18). Then k = 2 overshoots both ways: R above 1."""
+    d, _, next_day, L = world
+    assert _true_run(d, next_day, 2, L)["R"] > 1.1                      # about 1.19
+
+
+def test_the_measure_is_scale_free_and_the_power_check_reads_as_entry_20_says():
+    rng = np.random.default_rng(6)
+    months = pd.period_range("1990-01", periods=240, freq="M")
+    bh = pd.Series(np.exp(rng.normal(-3, 0.4, 240)), months)
+    same = metrics.vol_stability_test(pd.DataFrame({"timed": 0.5 * bh, "bh": bh}))   # half size, no timing
+    assert same["R"] == pytest.approx(1.0) and same["reduction"] == pytest.approx(0.0, abs=1e-12)
+    assert same["reading"] != "edge"
+    g, se, months_dev = 0.25, 0.02, 870
+    expect = norm.cdf(g / (se * np.sqrt(months_dev / 36)) - 1.6448536)
+    assert metrics.power_at(g, se, months_dev) == pytest.approx(expect)
+    assert metrics.power_at(0.5, 0.01, 870) > 0.99 and metrics.power_at(0.0, 0.05, 870) < 0.06

@@ -11,6 +11,8 @@ primary test as before (Entry 3). Small gains at best are expected, so "inconclu
 Rules in TRACK_B, written before any Track B result on any data (PREREGISTRATION Entry 17), with the user's calls
 of Entry 20: SPY is the primary book, and B1 and B2 scale by inverse volatility, as Wang and Yan do. Verified on
 simulated data (test/test_fixes.py).
+
+Ended at development (Entry 27): no variant survived Romano-Wolf on the twin (Entry 24).
 """
 
 from __future__ import annotations

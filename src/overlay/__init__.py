@@ -14,6 +14,8 @@ Rules in TRACK_A, written before any Track A result on any data (PREREGISTRATION
 Entry 20: SPY only; A0 and A1 (A2 dropped: the blend lives on as Track B's B1); the primary metric is volatility
 stability. A pass means the overlay keeps risk steadier out of sample than buy-and-hold, not that it earns more.
 Verified on simulated data (test/test_overlay.py).
+
+Ended at development (Entry 27): the 36-month power check gave 8.4% (Entry 26), and the Sortino fallback no better.
 """
 
 from __future__ import annotations

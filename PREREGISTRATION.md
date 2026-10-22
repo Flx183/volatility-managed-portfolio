@@ -2049,3 +2049,206 @@ The explanation proposed in conversation was that μ̂ moves by a factor of abou
 - Track C's code, its pinned rules (`TRACK_C`, `PUTWRITE`, `C1`) and its results stay in the repository as the record.
 - Holdout B stays unseen for any VRP idea.
 - **Next:** Tracks A and B continue. Holdout B runs only for their frozen books.
+
+---
+
+## Entry 24 — 2026-10-22: Track B, development outcome
+
+**Status.** Written after the one run. Entries 17 and 20 are not edited, and no rule changed after the run.
+- `python -m src.fixes.build` ran on 2026-10-22, in 39 seconds, on development data only.
+- The only earlier real-data step was the counts-only check (Entry 17, Section 8).
+
+### 1. Checks of the run
+
+- **The months.** The twin scores 870 months (July 1946 to December 2018), SPY 263 (February 1997 to December 2018) and the paper mix 276 (1984, and 1997 to 2018). Every variant is scored on its book's common months.
+- **The frozen runs reproduce Phase 7** (Entry 7): the twin +0.030 (p 0.32), SPY +0.165 (p 0.13), the paper mix +0.013 (p 0.47).
+
+### 2. The decision: the twin's family (SPY is the primary book; Entry 20)
+
+`reports/phase10_trackb_dev_family.csv`, statistic (a), 870 months:
+
+| Variant | Gain | Standard error | p | Romano-Wolf p | Holm p | Reading |
+|---|---|---|---|---|---|---|
+| B1, inverse-volatility blend | +0.026 | 0.023 | 0.124 | 0.160 | 0.371 | **no meaningful edge** (upper bound +0.064) |
+| B2, downside-volatility blend | +0.043 | 0.026 | 0.047 | 0.075 | 0.187 | edge on its own; not after adjustment |
+| B3, conditional targeting | +0.028 | 0.053 | 0.297 | 0.262 | 0.371 | inconclusive |
+| B4, trend gate | +0.064 | 0.059 | 0.138 | 0.162 | 0.371 | inconclusive |
+
+- **No variant survives Romano-Wolf** (smallest adjusted p 0.075) **or Holm** (0.187).
+- **B1 is the closest to a clear answer.** Being half buy-and-hold, it moves with it, so its standard error is small. Its gain is at most about 0.06.
+
+### 3. Beside it (information; neither decides)
+
+| Variant | SPY's own months (263), (a): gain (p; Romano-Wolf p) | Paper mix (276), (c): gain (p; Romano-Wolf p) |
+|---|---|---|
+| Frozen rule | +0.165 (0.130) | +0.214 (0.059; Entry 11) |
+| B1 | +0.066 (0.065; 0.107) | +0.089 (0.005; **0.015**) |
+| B2 | +0.066 (0.080; 0.120) | +0.107 (0.004; **0.015**) |
+| B3 | +0.066 (0.304; 0.280) | +0.182 (0.077; 0.072) |
+| B4 | +0.202 (0.078; 0.120) | +0.238 (0.037; 0.052) |
+
+- **On the paper mix, B1 and B2 survive Romano-Wolf.** The paper mix is a secondary book: an upper bound, since it carries no costs and holds BAB. Its family does not decide.
+- **On SPY's own months, no variant survives.** B1, B2 and B3 there are three different runs whose Sharpe ratios happen to agree to three decimals (0.4830, 0.4830, 0.4832), with different means, volatilities and sizes.
+
+### 4. B4 in the development crises (its design; the twin)
+
+| Episode | Rule | Size on buy-and-hold's five worst days | The fall, timed / buy-and-hold | The rebound, timed / buy-and-hold (mean size) |
+|---|---|---|---|---|
+| October 1987 | Frozen | 0.67 | −23% / −34% | +4% / +20% (0.73) |
+| October 1987 | B4 | 0.81 | −27% / −34% | +3% / +20% (0.77) |
+| 2000–2002 | Frozen | 0.35 | −33% / −54% | +13% / +39% (0.53) |
+| 2000–2002 | B4 | 0.49 | −42% / −54% | +20% / +39% (0.66) |
+| 2008–2009 | Frozen | 0.13 | −21% / −56% | +15% / +75% (0.49) |
+| 2008–2009 | B4 | 0.13 | −23% / −56% | +33% / +75% (0.82) |
+
+- **B4 did part of what it was built for.** In 2008–2009 it kept the frozen rule's protection on the worst days, and it captured twice the frozen rule's rebound. Even so, that was under half of buy-and-hold's.
+- **It did not help in 1987,** a crash out of calm.
+- **The trend gate's gain does not survive Romano-Wolf.**
+
+### 5. Reading under the pass rule (Entry 17, Section 5)
+
+- **No variant's development gain survives Romano-Wolf, so no Track B variant moves to Holdout C.**
+- Entry 20 expected weak development results, and this is what the run shows.
+- **Running Track B on Holdout B could not change this,** and it would add a look at the holdout (Entry 23's reasoning). Whether to run it anyway, or to end Track B at development, is the user's call.
+
+---
+
+## Entry 25 — 2026-10-22: Track A, the volatility-stability measure, its simulated check, and the power check
+
+**Status.** Written before the power check ran. No Track A variant has been run on real data.
+- The measure is in `src/overlay/metrics.py` and the power check in `src/overlay/build.py` (`--power`).
+- Both are verified on simulated data (`test/test_overlay.py`).
+- Marked *(my choice)* where Claude fixed a detail Entry 20 left open.
+
+### 1. The measure, exactly
+
+- **σ_m** = √(Σ r²) over month m's trading days, for the timed account and for buy-and-hold. Each day's r is the account's return relative to cash, from the run's daily ledger *(my choice: the repository's realized-variance convention, not a demeaned standard deviation)*.
+- **R** = SD(ln σ_m, timed) / SD(ln σ_m, buy-and-hold) over the scored months. The reduction is g = 1 − R.
+- **p:** Entry 6's paired stationary bootstrap. Both columns are resampled by the same months; mean blocks 6 and 12, 10,000 draws, seed 0; the larger p is kept.
+- **The standard error** is the larger bootstrap standard deviation of g over the two blocks.
+- **Bounds and MDE** *(my choice, as the primary test reads its own)*: the one-sided 95% bounds are g ± 1.645 × standard error, and the minimum detectable effect is 2.4865 × standard error.
+- **Readings:**
+  - edge if p < 0.05;
+  - no meaningful edge if the upper bound is below 0.10;
+  - inconclusive otherwise.
+
+### 2. The simulated check: the user's derivation, in a GARCH world
+
+- **The world:** 100 years of daily GARCH(1,1) returns (a = 0.10, b = 0.89, 16% volatility).
+- **The size** is c / σ^k on the true expected variance of each month: the sum of the GARCH forecasts of its days' variances, known at the close before. There is no cap and no cost, and the run goes through the engine, with drift inside each month.
+
+| Sizing on | k = 1 (inverse volatility) | k = 2 (inverse variance) |
+|---|---|---|
+| The true expected variance of the month | **R = 0.674**, edge | **R = 1.001** |
+| The next day's variance × the month's days | R about 0.68 | **R about 1.19** |
+
+- **The derivation holds:** ln σ_timed = ln c + (1 − k)x + e.
+  - With x the true expected volatility, the error e is uncorrelated with x (correlation about −0.02).
+  - Inverse volatility leaves only Var(e): R well below 1.
+  - Inverse variance leaves Var(x) + Var(e), as buy-and-hold does: R of 1.
+- **Its assumption matters.** A forecast that ignores mean reversion within the month has an error that falls when it rises (correlation about −0.18).
+  - Inverse variance on such a forecast overshoots in both directions, and R rises above 1.
+  - So A0, the frozen inverse-variance rule on real GARCH forecasts, could read R above 1. That would be a finding.
+- **The measure is scale-free.** A run held at half size with no timing gives R = 1 exactly.
+- **All three cases are tests.**
+
+### 3. The power check (Entry 20's fallback), as it will run
+
+- **Run:** A1 on the twin. That is the market factor at SPY's costs with M2; A0's months, with c_t from 120 pairs (July 1946 to December 2018); the cap of 1.5; and σ̂_y from the twin's last 10 years at each December year-end.
+- **Power at 36 months** = Φ(g / (se × √(T / 36)) − 1.645), with g, se and T from Section 1 on those months.
+- **Rule:**
+  - if the power is at least 80%, volatility stability stays the primary metric;
+  - below 80%, the Sortino gain becomes the primary metric, with the 0.16 bound.
+- **The run's development reading** of A1's volatility stability is reported with it. It is an input to the power, not a test of Track A: Holdout C decides.
+- **A0 is not part of the power check.**
+- **Output:** `reports/phase10_tracka_power.csv`, from `python -m src.overlay.build --power`.
+
+---
+
+## Entry 26 — 2026-10-22: Track A, the power check: the fallback applies
+
+**Status.** Written after the power check ran, once, under Entry 25's rules unchanged.
+- `python -m src.overlay.build --power` ran on 2026-10-22, in 3 seconds, on development data only. The output is `reports/phase10_tracka_power.csv`.
+- Section 3 is information measured on the same run after its result was seen; it changes nothing.
+
+### 1. The result
+
+| A1 on the twin (870 months, July 1946 to December 2018) | Value |
+|---|---|
+| R: SD of log monthly volatility, timed over buy-and-hold | **0.940** (0.436 / 0.464) |
+| Reduction, 1 − R | 0.060 |
+| Standard error; p | 0.046; 0.085 |
+| One-sided 95% bounds; MDE | −0.015 to +0.135; 0.113 |
+| Development reading | inconclusive |
+| **Power at 36 months** | **8.4%** (the bar is 80%) |
+
+### 2. What follows under Entry 20
+
+- **The power is below 80%, so the Sortino gain becomes Track A's primary metric,** with its no-meaningful-edge bound of 0.16.
+- Volatility stability is reported beside it.
+- **Entry 20, Section 7's note now applies: the fallback does not rescue power.**
+  - By the estimate used in conversation (a smallest detectable Sortino gain near 1.1 at 36 months, against a development effect near +0.12), the Sortino gain's power at 36 months is about 9%. That is no better.
+  - The estimate is rough: it uses Phase 7's paper primary, not A1 on the twin.
+- **A longer wait does not fix it.** For volatility stability to reach 80% power at this development effect would take about 3,200 months (about 260 years).
+- **So under either metric, Holdout C at 36 months has under 10% power to confirm Track A.** Entry 20 expected Track A to be the only track with a real chance; on these development estimates it is not.
+
+### 3. Information on the same run (measured after the result; not a test)
+
+- **The real result is far weaker than the simulated one.** The simulation's R was 0.674 with the true volatility and no cap (Entry 25); here R is 0.940.
+- **The forecast tracks realized volatility reasonably.** The correlation of A1's log forecast volatility with buy-and-hold's log realized volatility is 0.67.
+- **A1's mean size is 1.07, and it sits at the 1.5 cap in 14% of months.**
+- **Why R is so much higher than in simulation is not established.** Three candidates exist:
+  - the cap, which stops the size rising in calm months;
+  - the yearly-moving target σ̂_y;
+  - forecast errors that move with the forecast.
+  None was tested, and none is chased here: changing the rule now would be tuning after seeing the result.
+
+### 4. The user's call
+
+Track A is now registered with the Sortino gain as its primary metric and very low power at Holdout C. Whether to continue to development runs, the freeze and Holdout B, or to end Track A at development as Tracks B and C did, is the user's call.
+
+---
+
+## Entry 27 — 2026-10-22: Tracks A and B end at development, and Phase 10's testing closes
+
+**Status.** The user's calls after Entries 24 and 26, made on development results only.
+- No Phase 10 strategy was frozen. Holdout B was not reopened in Phase 10, and no strategy runs on Holdout C.
+- Entry 15's rules stay in force for any future strategy.
+
+### 1. Track B ends at development
+
+- **Nothing passed, so nothing can reach Holdout C.** The pass rule (Entry 17, Section 5) was fixed in advance, and no variant's development gain survived Romano-Wolf (Entry 24). A Holdout B run would only add a look at the holdout.
+- **B1's reading is informative in its own right.** Over 870 months, the fixed blend reads "no meaningful edge".
+- **B4 is not tuned.** It partly recovered the 2009 rebound (+33% against the frozen rule's +15%), but that was seen after the fact. Adjusting it would fit one crisis.
+- **B1 and B2 surviving on the paper mix is recorded as information.**
+  - In the user's reading, it fits Wang and Yan, whose evidence is on factor portfolios rather than the market.
+  - The paper mix cannot be traded, so it is not tested further.
+
+### 2. Track A ends at development
+
+- **A known-inconclusive test tells nothing.** Its power at 36 months is under 10% under either metric (Entry 26). Thirty-six months of paper trading would buy one more "inconclusive" and one more look at a holdout.
+- **No redesign is pursued.**
+  - The user's rough scaling: even the simulation's perfect-forecast cut (R = 0.674, a reduction of about 0.33) would need about 9 years at the real data's noise: 263 × (0.06 / 0.33)² ≈ 8.7 years.
+  - Real forecasts land between R = 0.67 and 0.94, so A1 is not tuned to chase power.
+- **The user's reading, not tested:** forecast error and the 1.5 cap most likely left little of the simulated effect.
+- **Optional, and not adopted unless the user asks:** a monthly log of A1's SPY size, labelled a demonstration with no test date. It would not be evidence.
+
+### 3. Phase 10's testing is closed
+
+- **The deliverable is the write-up:** the report's Phase 10 postscript, and the README.
+- **Holdout B** was opened once, in Phase 9. Phase 10 did not reopen it for any track.
+- **Holdout C** has been sealed since 1 September 2026. No strategy was frozen, so none is paper traded.
+- **Every Phase 10 result is on development data.**
+
+### 4. The findings for the write-up
+
+The user's list, with the source of each number made exact *(my additions in italics)*:
+
+1. **VRP predicts market returns** (Entry 19's gate: 9 of 9 cells, 1990–2018), but it added nothing as a sizing signal over volatility timing: −0.015, p 0.56 (Entry 22; *251 months of SPY after costs*).
+2. **Four rule fixes did not beat buy-and-hold** (Entry 24): the fixed blend, the downside blend, conditional targeting and the trend gate. *That is on the market factor at SPY's costs over 870 months (1946–2018). Their gains were positive (+0.026 to +0.064), but none survived Romano-Wolf.* The fixed blend reads "no meaningful edge". On the paper mix, B1 and B2 survive (information).
+3. **Volatility timing's risk benefit comes in episodes,** not month to month.
+   - Month to month, A1 steadied volatility only slightly: R = 0.94 on the twin (Entry 26).
+   - In crises the cut was large. *That is the volatility-only SPY rule over 1998–2018 (Entry 22): a maximum drawdown of −31% against buy-and-hold's −56%. Scaled to that rule's volatility (10.5% against 14.9%), buy-and-hold's drawdown is about −40%, so part of the cut is the smaller size.*
+   - With a few such episodes a century, no practical forward window can test it.
+4. **Inverse volatility steadies risk (R = 0.67); inverse variance does not (R = 1.00).** A forecast that ignores mean reversion within the month makes risk less steady (R = 1.19).
+   - *These are simulation results: a GARCH world, sized on the true volatility with no cap (Entry 25). None was measured on real data.*

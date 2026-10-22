@@ -1,6 +1,6 @@
 # Volatility timing in real time: a pre-registered test with a sealed holdout
 
-*Research report on Phases 1–9 · October 2026. Every number here traces to `PREREGISTRATION.md` (Entries 1–14) or to a table in `reports/`. Paper-factor results are upper bounds: those books carry no trading costs, and two of their factors cannot be traded.*
+*Research report on Phases 1–9, with a postscript on Phase 10 · October 2026. Every number here traces to `PREREGISTRATION.md` (Entries 1–14) or to a table in `reports/`. Paper-factor results are upper bounds: those books carry no trading costs, and two of their factors cannot be traded.*
 
 ## Summary
 
@@ -20,6 +20,8 @@ Scaling a portfolio by the inverse of its own forecast variance means holding le
   - On development, one market-only year (1984) decided the verdict.
 
 A pre-registered, sealed-holdout null is a finding in itself. The sections below show why this one came out as it did and what it can and cannot rule out.
+
+After the holdout, three follow-ups on development data (Phase 10) found no new edge: a variance-risk-premium signal, four fixes to the timing rule, and the rule as a pure risk overlay. None reached a holdout. The postscript has the findings.
 
 ---
 
@@ -308,6 +310,50 @@ Built and judged in real time, volatility timing of a diversified factor portfol
 - What the rule did reliably was manage risk: smaller drawdowns, lower volatility, sizes cut before most crashes that built up gradually. Its costs were missed rebounds and a lower certainty-equivalent return.
 
 The study cannot rule out a modest true edge of the size the literature reports for the market. No sample here could. What it can say is that the large real-time gains a reader might expect from the headline results did not appear: not on 92 years of development data under a real-time rule, and not on 91 months the rule had never seen.
+
+## Postscript: Phase 10, after the holdout (development data only)
+
+After the holdout was opened, three follow-ups asked whether volatility forecasts are worth more elsewhere, or under a better rule.
+- **Each was pre-registered before it ran** (`PREREGISTRATION.md`, Entries 15–27).
+- **Each ended on development data.** None passed the test that would have sent it to a holdout, so Holdout B was not reopened and no strategy was frozen for the sealed forward sample (September 2026 onward).
+
+**1. The variance risk premium predicts returns, but added nothing as a sizing signal** (Entries 18–23).
+- **The signal.** VRP is VIX's implied monthly variance minus our forecast of next month's variance.
+- **It predicts returns.** On 1990–2018 it predicts the market's excess return 1, 3 and 6 months ahead:
+  - in all nine combinations of three forecast models and three horizons (t from 3.6 to 6.2);
+  - with the same sign in each third of the sample;
+  - beating a plain average out of sample (R² from 1.0% to 8.3%).
+- **As a sizing signal it added nothing.** SPY was sized by c_t × μ̂ / σ̂², with μ̂ forecast from VRP. Over 251 months after costs it did no better than volatility timing alone: −0.015 in Sharpe ratio (p 0.56).
+- **Why it didn't help is not settled.** Measured the same way, μ̂ and the variance forecast spread about equally, and a high VIX lifts both, so they partly cancel. VRP changed the size; it did not improve the Sharpe ratio.
+
+**2. Four fixes to the timing rule did not survive adjustment for testing four** (Entries 17, 20, 24).
+- **The fixes:**
+  - a fixed 50/50 blend with an inverse-volatility rule (Wang and Yan's scaling);
+  - the same on downside volatility;
+  - conditional targeting (size 1 except when forecast volatility is in its top or bottom 20%);
+  - a 10-month trend gate.
+- **The test:** the market factor at SPY's costs, 870 months (1946–2018).
+- **The result:**
+  - The gains were positive (+0.026 to +0.064), but none survived Romano-Wolf (smallest adjusted p 0.075).
+  - The fixed blend reads "no meaningful edge": its gain is at most about 0.06.
+  - The trend gate recovered twice the frozen rule's 2009 rebound (+33% against +15%), but under half of buy-and-hold's (+75%).
+- **On the paper factor mix the two blends do survive** (+0.09 and +0.11), consistent with Wang and Yan's evidence on factor portfolios. That book cannot be traded.
+
+**3. Volatility timing's risk benefit comes in episodes, not month to month** (Entries 22, 25–26).
+- **Month to month,** timing by inverse volatility steadied the market's volatility only slightly. The spread of log monthly volatility, timed over buy-and-hold, was R = 0.94 over 1946–2018.
+- **In crises the cut was large.** Over 1998–2018, timed SPY's maximum drawdown was −31% against buy-and-hold's −56%. Part of that is the smaller size: scaled to the timed rule's volatility, buy-and-hold's drawdown is about −40%.
+- **Neither can be tested forward in practice.**
+  - A 36-month forward test of the month-to-month effect has about 8% power, and 80% would take centuries.
+  - A test of the crisis effect needs crises, and there are a few a century.
+
+**4. Whether a rule steadies risk depends on its power and on the forecast** (simulation, Entry 25).
+- **The setup:** a simulated GARCH world, sized on the true monthly volatility with no cap.
+- **Inverse volatility steadies monthly risk** (R = 0.67).
+- **Inverse variance, the papers' rule, does not** (R = 1.00). It swaps calm and wild months rather than evening them out.
+- **On a forecast that ignores mean reversion within the month,** inverse variance makes risk *less* steady than buy-and-hold (R = 1.19).
+- **These are simulated results.** On real data the inverse-volatility rule's effect shrank from R = 0.67 to 0.94. Forecast error and the 1.5 cap are the likely reasons; neither was tested.
+
+**What closes Phase 10.** No new edge was found. The effects that are real here — VRP's link to future returns, and timing's cut in crisis drawdowns — are too small, or too rare, to confirm on any forward sample of practical length.
 
 ## References
 

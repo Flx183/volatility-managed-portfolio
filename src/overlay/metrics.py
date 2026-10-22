@@ -12,6 +12,17 @@ Track A, metrics: the primary test and the risk numbers beside it
     risk_row(m)                     every risk number Track A reports for one run's scored months
     cost_drag(res, months)          what costs take from the Sharpe and Sortino gains (monthly runs)
 
+The primary metric (Entry 20): volatility stability.
+    monthly_vol(book, res, periods, months)  σ_m = √(Σ r²) over each month's trading days, for the timed account and
+                                    buy-and-hold, from the daily ledger (crises.path: each day's return relative to cash)
+    vol_stability_test(v)           R = SD(ln σ_m timed) / SD(ln σ_m buy-and-hold) and the reduction g = 1 - R. The p
+                                    is Entry 6's paired stationary bootstrap (both columns resampled by the same months;
+                                    mean blocks 6 and 12; the larger p); se is the larger bootstrap standard deviation of
+                                    g; the one-sided 95% bounds are g ± 1.645 se and the MDE 2.4865 se. Readings: edge if
+                                    p < 0.05; no meaningful edge if the upper bound is below 0.10; inconclusive otherwise
+    power_at(g, se, months, at)     Entry 20's power check: Φ(g / (se √(months / at)) - 1.645), the chance a 36-month
+                                    sample reads "edge" if the development reduction is the truth
+
 Scale. The Sortino ratio of excess returns, like the Sharpe ratio, does not change when a run is scaled. The
 other numbers do: a run held at half size has about half the drawdown, the shortfall and the worst month
 whether or not its timing helps. So each is also reported for buy-and-hold at matched volatility, and the
@@ -28,7 +39,10 @@ from scipy.stats import norm
 from src.engine import evaluation as ev
 from src.engine.data import MONTH
 from src.overlay import TRACK_A
+from src.robustness import crises
 from src.walkforward import stats
+
+VOL_BOUND = 0.10                         # no meaningful edge: the reduction's one-sided 95% upper bound below this (Entry 20)
 
 
 def newey_west(y: np.ndarray, lags: int) -> np.ndarray:
@@ -107,3 +121,47 @@ def cost_drag(res: pd.DataFrame, months: pd.PeriodIndex) -> dict:
             "cost_drag_sortino": gain(stats.sortino, gross) - gain(stats.sortino, net),
             "costs_a_year": (r["trading"] + r["financing"]).mean() * 12,
             "bh_costs_a_year": (r["bench_trading"] + r["bench_financing"]).mean() * 12}
+
+
+# ---------------------------------------------------------------- volatility stability (Entry 20)
+
+def monthly_vol(book, res: pd.DataFrame, periods, months: pd.PeriodIndex) -> pd.DataFrame:
+    """σ_m of the timed account and of buy-and-hold on each of `months`, from the run's daily ledger."""
+    p = crises.path(book, res, periods)
+    g = p.index.to_period(MONTH)
+    out = pd.DataFrame({"timed": np.sqrt((p["ret"] ** 2).groupby(g).sum()),
+                        "bh": np.sqrt((p["bench_ret"] ** 2).groupby(g).sum())}).reindex(months)
+    if out.isna().any().any() or (out <= 0).any().any():
+        raise ValueError("every scored month needs a positive realized volatility in both runs")
+    return out
+
+
+def _log_sd_ratio(C: np.ndarray, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """SD(a) / SD(b) in each resample (rows of C: how often each month is drawn)."""
+    n = len(a)
+    var = lambda x: (C @ x ** 2 / n - (C @ x / n) ** 2) * n / (n - 1)
+    return np.sqrt(var(a) / var(b))
+
+
+def vol_stability_test(v: pd.DataFrame, blocks=stats.BOOT["blocks"], reps: int = stats.BOOT["reps"],
+                       seed: int = stats.BOOT["seed"], bound: float = VOL_BOUND) -> dict:
+    a, b = np.log(v["timed"].to_numpy()), np.log(v["bh"].to_numpy())
+    R = float(np.std(a, ddof=1) / np.std(b, ddof=1))
+    g = 1 - R
+    ps, ses = [], []
+    for blk in blocks:
+        draws = 1 - _log_sd_ratio(stats.counts(len(a), blk, reps, seed), a, b)
+        ps.append(float(stats.bootstrap_p(np.array([g]), draws[:, None])[0]))
+        ses.append(float(draws.std(ddof=1)))
+    p, se = max(ps), max(ses)
+    z_level, z_power = norm.ppf(1 - ev.TEST_RULES["level"]), norm.ppf(ev.TEST_RULES["power"])
+    out = {"months": len(a), "R": R, "reduction": g, "se": se, "p": p, "lower": g - z_level * se,
+           "upper": g + z_level * se, "mde": (z_level + z_power) * se,
+           "sd_log_timed": float(np.std(a, ddof=1)), "sd_log_bh": float(np.std(b, ddof=1))}
+    out["reading"] = "edge" if p < ev.TEST_RULES["level"] else ("no meaningful edge" if out["upper"] < bound else "inconclusive")
+    return out
+
+
+def power_at(g: float, se: float, months: int, at: int = 36) -> float:
+    z_level = norm.ppf(1 - ev.TEST_RULES["level"])
+    return float(norm.cdf(g / (se * np.sqrt(months / at)) - z_level))

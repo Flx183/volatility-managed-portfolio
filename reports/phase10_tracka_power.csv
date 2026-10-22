@@ -1,0 +1,2 @@
+variant,book,first,last,months,R,reduction,se,p,lower,upper,mde,sd_log_timed,sd_log_bh,reading,power_at_36,power_bar,primary_metric,registered_primary
+A1,twin,1946-07,2018-12,870,0.9404633394812874,0.05953666051871265,0.04559029454108272,0.0845,-0.01545270081097315,0.13452602184839846,0.11335912126030434,0.4362312783950915,0.4638471911469669,inconclusive,0.08391541281998088,0.8,sortino,vol_stability
