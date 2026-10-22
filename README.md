@@ -1,5 +1,5 @@
 # volatility-managed-portfolio
-Test and Implement volatility based strategy on managing portfolios risk
+A pre-registered, real-time test of volatility-managed portfolios: does holding less when risk is high beat holding steadily?
 
 ## Summary: Phases 1–9
 
@@ -32,6 +32,53 @@ Test and Implement volatility based strategy on managing portfolios risk
 
 **Full report:** [reports/research_report.md](reports/research_report.md). **Since then (Phase 10, end of this file):** three follow-ups on development data found no new edge, and none reached a holdout. They were a variance-risk-premium signal, four fixes to the timing rule, and the rule as a pure risk overlay. Their findings are in the report's postscript.
 
+## Repository and how to run it
+
+| Path | What it holds |
+|---|---|
+| [PREREGISTRATION.md](PREREGISTRATION.md) | Every rule and outcome, in dated entries (1–27), each written before the result it governs |
+| `src/data/` | Phase 1: downloads, the panel, the data checks, the sealed holdout and its loader |
+| `src/variance.py`, `src/screen.py`, `src/portfolio.py` | Phases 2–4: variance tests, asset screen, portfolio recipes |
+| `src/engine/` | Phase 5: the backtest engine (data, forecast, weights, execution, evaluation) |
+| `src/models/` | Phase 6: the eight forecast models and their scorecards |
+| `src/walkforward/`, `src/robustness/`, `src/holdout/` | Phases 7–9: walk-forward, robustness checks, the final holdout test |
+| `src/retest/`, `src/overlay/`, `src/fixes/`, `src/vrp/` | Phase 10: the Holdout B runner, and Tracks A, B and C |
+| `src/writeup.py`, `src/frozen.py` | The report's figures; read-only rule tables |
+| `test/` | Unit tests, all on simulated data; `test_frozen_rules.py` pins every registered rule table |
+| `reports/` | Phase reports (notebooks), result tables (CSV), [the research report](reports/research_report.md) and its figures |
+| `data/` | `raw_manifest.json` (every source file's URL and hash) and the seals `holdout_lock.json` and `putwrite_lock.json`. Raw files and built panels are rebuilt locally (git-ignored) |
+
+**Setup.** Python 3.12.1, with library versions pinned in `requirement.txt`:
+
+```bash
+pip install -r requirement.txt
+python -m pytest                      # about 45 minutes, mostly three gradient-boosting tests
+```
+
+**Rebuilding, in order.**
+- Every step below reads only development data. The data build also writes the sealed holdout files, but it does not analyse them.
+- The one step that opened the holdout, Phase 9's real run, is not listed: it refuses to run again.
+- Forecasts are cached in `data/processed/phase6_cache/`, so later runs take a minute.
+
+```bash
+python -m src.data.build                 # Phase 1: snapshot, panels, checks, the seal
+python -m src.models.build               # Phase 6: about an hour on 10 cores the first time
+python -m src.walkforward.build          # Phase 7: about 35 minutes the first time
+python -m src.robustness.build           # Phase 8: about 50 minutes the first time
+python -m src.holdout.build --rehearse   # Phase 9 on development data only (the real run refuses to run twice)
+python -m src.vrp.build                  # Phase 10, Track C: the EDA and its gate
+python -m src.vrp.walkforward            # Track C: C1's development walk-forward
+python -m src.fixes.build                # Track B: the development family
+python -m src.overlay.build --power      # Track A: the 36-month power check
+python -m src.writeup                    # the report's figures, from saved outputs only
+```
+
+Phases 2–4 run inside their report notebooks (`reports/phase2_variance.ipynb` to `reports/phase4_portfolio.ipynb`).
+
+**The holdouts.**
+- **Holdout B** (January 2019 to August 2026) opens only through its logged loader. Phase 9 opened it once; Phase 10 did not reopen it.
+- **Holdout C** (September 2026 onward) is never written to a file.
+
 ## Phase 1: Data and Set up
 
 ```bash
@@ -52,10 +99,12 @@ panel = load_dev()   # one row per trading day, 1926-07-01 .. 2018-12-31
 `panel` columns: factor excess returns `mkt smb hml mom rmw cma bab`, ETF excess returns
 `spy mtum qual usmv`, `rf`, `vix` and event flags `fomc cpi jobs`.
 
-The holdout (2019 onward) sits in separate files, sealed by a content hash in
-`data/holdout_lock.json`. It is opened once, in Phase 9, with
-`load_holdout(confirm="phase 9 final test")`, and every opening is logged in
-`data/holdout_access_log.csv`.
+The holdout (1 January 2019 to 31 August 2026) sits in separate files, sealed by a content hash in
+`data/holdout_lock.json`.
+- **Phase 9** opened it once, with `load_holdout(confirm="phase 9 final test")`.
+- **From Phase 10** it is Holdout B. It opens only through `src/retest` with its own passphrase, and every opening is logged in `data/holdout_access_log.csv`.
+- **Rows after 31 August 2026** (Holdout C) are never written to a file, and the loader refuses them.
+- **Rebuilding or resealing** (`--refresh`, `--relock`) changes the holdout, so it needs a dated PREREGISTRATION entry first.
 
 ETF history is short: MTUM and QUAL start in 2013 and USMV in 2011, leaving 5 to 7 years before 2019,
 under the 10-year initial training window. So ETFs are never tuned on. Every model and cutoff is chosen
@@ -64,41 +113,74 @@ from the paper factors, and the ETFs are only checked against those choices.
 
 ## Phase 2: Variance and EDA
 
-Variance:
+How each asset's variance behaves, and whether timing it can pay (`src/variance.py`, report `reports/phase2_variance.ipynb`). It covers eight series: the seven factors and an equal-weight mix of them. Every pass rule (`RULES`) was written before the first test ran.
 
+**Variance.** A month's realized variance (RV) is the sum of its daily squared returns, Σ r². Downside RV counts only the down days. Most tests also use log RV.
 
-Tests:
-- 
+| Test | What it asks | Result (development, 1926–2018) |
+|---|---|---|
+| 1 Predictable (the gate) | Does this month's RV predict next month's? Ljung-Box on r², and a monthly AR(1) slope φ above 0.5 | **All eight pass**; φ from 0.54 (momentum) to 0.76 (profitability) |
+| 2 Memory | Do weekly and monthly averages of past r² predict variance (the HAR model)? | Long memory for 6 of 8. Momentum and investment miss only on the weekly term |
+| 3 Bad days | Do down days raise future variance more than up days? | Only value. Momentum, investment and the equal-weight mix show the reverse |
+| 4 Reward vs risk | When risk is high, is it poorly paid, so that holding less helps? | **Market, momentum, BAB** and the equal-weight mix pass. Size and investment fail; value and profitability are borderline |
+| 5 Events and VIX | Do FOMC, CPI or jobs days, or VIX, add information? | No event flag helps. VIX helps for market, value, momentum and BAB |
+| 6 Eras | Do the patterns hold in 1926–1962, 1963–1990 and 1991–2018? | Persistence (in logs) and falling reward-to-risk hold in every era for market, momentum and BAB. Asymmetry does not |
+| 7 Shape | Is log RV close to normal? | Much closer than RV, but short of the rule |
+| 8 Collinearity | Are the HAR terms too correlated? | No: VIFs 1.4–4.6 |
+| 9 Curvature | Is persistence stronger in wild months? | Yes for market, value, profitability and investment |
+| 10 History | How much history helps, and is the pattern stable? | 66 days of history still help. Persistence drifts, and 7 of 8 series have breaks in mean log RV |
 
-- 
+**Test 4, in plain terms.**
+1. Each month, measure how volatile it was.
+2. Sort the months from calmest to wildest into five groups. In each, compute the next month's average return, its variance and their ratio.
+3. Build the managed version: next month's return × c ÷ this month's variance. After a wild month it holds less, after a calm month more.
+4. c is set so the managed and original series have the same volatility, so they compare on equal terms.
+5. Regress managed on original (managed = α + β × original). A positive α means timing adds value beyond holding.
 
-- 
+It passes when reward-to-risk is lower in the wildest group than the calmest (rank correlation −0.7 or below) and α is positive with t above 1.96. The four that pass earn α of 4.8% a year (market), 10.4% (momentum), 6.6% (BAB) and 1.9% (the equal-weight mix).
 
-- Test 4: to measure if its rewarding more if we hold less on the assets on risky times, if not then it would just be better for us to buy&hold. How it works:
-1. Each month, score how volatile and record the returns and variance of each assets
-2. Sort each pile of months from calmest to wildest and for each pile, compute their avg returns, variance, then the ratio
-3. Then managed the return as for each month, multiply the next return by a weight which is c + last month variance. After a wild month, hold less, after a calm month, hold more
-4. The constant c is set in order for managed and original have the asme volatility and allow them to be comparable, and not by their values
-5. Compare managed with original: with regression managed: a + B * original then t-test to minimize chance of luck
+**What Phase 2 changed downstream.**
+- HAR models with a 66-day term, and HAR-X with VIX for market, value, momentum and BAB.
+- Downside models only for value and the market. No event flags.
+- Log and level forecasts compared out of sample.
+- Rolling windows and yearly re-screening, because persistence drifts.
+- Time the market, momentum and BAB.
+- A plain monthly AR(1) explains 16–58% of next month's variance out of sample: the number a fancier model must beat.
 
-## Phase 3: Assets Screening
+```python
+from src import variance as v
+mon = v.monthly_table(panel["mkt"])                     # monthly RV, downside RV and log RV
+v.t1_persistence(panel["mkt"], mon)                     # Test 1, the gate
+v.t4_verdict(v.t4_sort(mon), v.t4_spanning(mon))         # Test 4, reward vs risk
+```
 
-Assets Screening with multiple filters to keep only assets with chance of success.
+## Phase 3: Asset screening
 
-Filters:
-- Predictable Risks: from test on phase 2, test 1 (fail: nothing to forecast). Result: all predictable
+Which assets are worth timing (`src/screen.py`, report `reports/phase3_screening.ipynb`, survivors `reports/phase3_survivors.csv`). `screen(panel, ohlc, asof)` reads only data up to `asof`, so the same screen runs in real time from Phase 7. The cutoffs are in `SCREEN_RULES`, fixed before the first run. One rule changed after it, and the change is recorded in PREREGISTRATION Entry 1.
 
-- Moving Risks: SD of log RV to measure how much variance moves (the idea is that if the risks is not moving with time, which is flat risk, then our whole idea of strategy would be useless as it would just be the same as buy&hold). Result: NO asset is flat
+| # | Filter | Why | Pass rule | Applies to |
+|---|---|---|---|---|
+| 1 | Predictable risk | With nothing to forecast, there is no strategy | Phase 2, Test 1 | factors |
+| 2 | Risk that moves | If risk is flat, timing is the same as holding | Standard deviation of log RV; ranked, no cutoff | factors |
+| 3 | Exploitable link | Holding less only helps if reward falls when risk rises | Phase 2, Test 4 | factors |
+| 4 | Systematic risk | Any long-only ETF is mostly market, so the market is hedged out first | The ETF's tilt (ETF − β × market) regressed on market, size, value, momentum and BAB: R² > 0.5. SPY is tested unhedged | ETFs |
+| 5 | Tradeable | It must be cheap to trade | Median daily dollar volume over the last 252 days above $50 million. The bid-ask half of the rule is not applied: no quote data | ETFs |
+| 6 | Stable | Not a one-era accident | Spanning α > 0 in each third of the history up to the as-of date | factors |
 
-- Exploitability for Strats: risk to reward ratio on how our assets can be exploited, where the reward must fall when the risk rises. Such that our strategy of reducing out position weight can be reduced when its getting risky. If the risk and reward is one on one, then there is no use to adjust our position based on the risk. Test from Phase 2, test 4 (the test measures how rewarding is it from risky times compared to calm times). Result: Only 3 assets: Market, Momentum, and BAB.
+A factor needs 120 months of history and an ETF 252 trading days. A factor survives only with a tradeable ETF that passes too. The stand-ins are SPY (market), MTUM (momentum), QUAL (profitability) and USMV (BAB).
 
-- Stability: to ensure that the Strats is stable and applicable in all eras of time such that the Strats is still viable and not just based on specific era. Test: using the phase 2 test 4, implemented on splitting the history into 3 eras, then check if the a variable stays > 0 as a consistency check that the Strats is not a single era accident. The 3 eras are equal thirds of the history available at the as-of date (not fixed calendar years), so the filter never reads data from after that date and can run in real time.
+**Result (full development sample).**
+- **All risk is predictable, and no asset's risk is flat** (filters 1 and 2).
+- **Market, momentum and BAB pass the exploitable-link filter** (3).
+- **SPY and MTUM pass the systematic-risk filter** (4; MTUM narrowly, at 0.53). USMV (0.38) and QUAL (0.17) fail it.
+- **Survivors: market (SPY) and momentum (MTUM).** BAB passes every factor filter, but its ETF, USMV, fails filter 4, so BAB has no tradeable stand-in.
+- **The change after the first run.** Filter 4 first used the raw ETF with R² > 0.7. Every ETF passed (0.82–0.96), because the market alone explains most of a long-only fund, so the filter could not fail. It was replaced by the hedged-tilt test above.
+- **In real time (Phase 7)** the screen runs at each year-end on the factor filters 1, 3 and 6 only, because the ETFs did not exist for most of the history.
 
-- Systematic Risk (ETF): a long-only ETF is mostly market, so any ETF would pass an R² test on market exposure alone. The test therefore hedges the market out first (ETF minus its market beta times the market), then regresses the leftover tilt on market, size, value, momentum and BAB, and requires R² > 0.5. SPY is the market itself, so it is tested unhedged. Result: SPY and MTUM pass; USMV (0.38) and QUAL (0.17) fail.
-
-- Tradeable (ETF): median daily dollar volume over the last 252 trading days above $50 million. The bid-ask spread half of the rule is not applied (no quote data).
-
-Result: only Market (SPY) and Momentum (MTUM) survive. Betting-against-beta passes every factor filter but its ETF, USMV, fails the systematic risk filter.
+```python
+from src import screen as sc
+sc.screen(panel, ohlc, panel.index[-1])     # every filter as of the last day, from data up to it
+```
 
 
 ## Phase 4: Portfolio Construction
@@ -253,7 +335,7 @@ Results (development sample; the paper book is an upper bound):
   - In 1984 the book is the market alone, at 19% volatility against 2–9% for the mixes that follow. It lost.
   - Over 1997–2018 alone the primary gains +0.30 (p 0.012), and 65 of 192 variants survive Romano-Wolf.
   - Phase 6's fixed book gains +0.61 on the same 276 months, so the asset list, not the years, removed Phase 6's edge.
-  - How to score a one-asset year in the holdout is an open decision (Entry 7, item 9).
+  - How to score a one-asset year in the holdout was decided before Phase 9: option (c) (Entry 10; see Phase 8 below).
 
 ```python
 from src.data.load import load_dev, load_etf_ohlc_dev
@@ -378,21 +460,31 @@ python -m src.holdout.build              # the final test, run once: refuses to 
 
 ## Phase 10: After the holdout (testing closed)
 
-Phase 9 opened the holdout once. From here on it is **Holdout B**: test data only, one run per frozen strategy, and every result graded clean or exploratory. A new forward sample, **Holdout C**, is sealed and does the final confirming through monthly paper trading (PREREGISTRATION Entry 15).
+Phase 9 opened the holdout once. Phase 10 set rules for testing after that (PREREGISTRATION Entry 15):
+- the seen holdout became **Holdout B**: test data only, one run per frozen strategy, every result graded clean or exploratory;
+- a new forward sample, **Holdout C**, was sealed from September 2026, for monthly paper trading of frozen strategies.
+
+Three tracks then ran on development data, and a fourth wrote up Phases 1–9. **None passed the test that would have sent it to a holdout,** so Holdout B was not reopened and nothing was frozen for Holdout C (Entry 27).
+
+| Track | Question | Development result | Ended |
+|---|---|---|---|
+| A: risk overlay | Does timing keep monthly risk steadier? | R = 0.94 (a 6% cut); 8% power for a 36-month test | at development (Entries 26–27) |
+| B: rule fixes | Do four fixes to the rule beat buy-and-hold? | Gains +0.026 to +0.064 on 870 months; none survives Romano-Wolf | at development (Entries 24, 27) |
+| C: variance risk premium | Does the fear premium predict returns, and help size SPY? | Predicts returns (gate passed, 9 of 9); adds nothing over volatility timing (−0.015) | after C2 (Entry 23) |
+| D: write-up | Report Phases 1–9 | [reports/research_report.md](reports/research_report.md), with a Phase 10 postscript | done |
 
 | Sample | Dates | Use |
 |---|---|---|
 | Development | July 1926 to December 2018 | EDA, fitting, tuning, choosing |
 | Holdout B | January 2019 to August 2026 | Test only, one run per frozen strategy (`src/retest/`) |
-| Holdout C | September 2026 onward | Sealed; monthly paper trading once a strategy is frozen |
+| Holdout C | September 2026 onward | Sealed: for monthly paper trading of a frozen strategy (none was frozen) |
 
 - **The runner** (`src/retest/`) reuses Phase 9's panel and writes `reports/phase10_<strategy>_*.csv`. Before it opens anything, it refuses two cases:
   - a second run of a strategy;
   - any run whose `src/` differs from the commit frozen with the strategy's entry.
 - **The contamination log** (Entry 15) lists what Phase 9 showed and which ideas it could bias. An idea it could bias is graded exploratory on Holdout B.
-- **Testing is closed (Entry 27).** Every Phase 10 result is on development data. Holdout B was not reopened, and no strategy was frozen for Holdout C. The findings are in the report's postscript.
 - **Step 0 is recorded** (Entries 15–18 plus Entry 20, the user's decisions, written before any run under them). Every track's Holdout C test comes 36 months after its own freeze. At that length the smallest detectable Sharpe gain is about 0.72, so for Tracks B and C, Holdout C mainly catches failures.
-- **Track A: vol timing as a risk overlay** (`src/overlay/`, Entries 16 and 20). Does timing keep risk steadier than buy-and-hold, out of sample, even when the Sharpe ratio does not move?
+- **Track A: vol timing as a risk overlay** (`src/overlay/`, Entries 16, 20 and 25–27). Does timing keep risk steadier than buy-and-hold, out of sample, even when the Sharpe ratio does not move?
   - SPY only. Two variants: A0, the frozen rule (c_t / σ̂²); A1, an inverse-volatility target.
   - The primary metric is volatility stability: R, the standard deviation of log monthly volatility, timed over buy-and-hold. "Edge" means R < 1. The Sortino gain is the secondary metric.
   - Inverse volatility leaves only the forecast error in the timed book's volatility. Inverse variance leaves as much as buy-and-hold, so A0 may fail this metric. A pass means steadier risk, not higher returns.
@@ -400,7 +492,7 @@ Phase 9 opened the holdout once. From here on it is **Holdout B**: test data onl
   - **Simulated check (Entry 25):** in a GARCH world sized on the true volatility, inverse volatility gives R = 0.67 and inverse variance R = 1.00, as the derivation says. If the forecast ignores mean reversion, inverse variance gives R ≈ 1.19: less steady than buy-and-hold.
   - **Power check (Entry 26):** on the twin, A1 gives R = 0.94 (a 6% reduction, p 0.085), so its power at 36 months is 8.4%. By the registered fallback the Sortino gain becomes primary, but its power is no better (about 9%).
   - **Track A ended at development (Entry 27).** No redesign can give a 36-month test useful power.
-- **Track B: fixes to the timing rule** (`src/fixes/`, Entry 17, a draft). Four changes aimed at Phase 9's causes, scored on the Sharpe ratio with the primary test:
+- **Track B: fixes to the timing rule** (`src/fixes/`, Entries 17, 20, 24 and 27). Four changes aimed at Phase 9's causes, scored on the Sharpe ratio with the primary test:
   - B1, a fixed 50/50 blend with an inverse-volatility rule (Wang and Yan);
   - B2, the same on downside volatility;
   - B3, conditional targeting (size 1 except in the forecast's top or bottom 20%);
@@ -409,18 +501,21 @@ Phase 9 opened the holdout once. From here on it is **Holdout B**: test data onl
   - The primary book is SPY, read on development through the market factor at SPY's costs (1946–2018).
   - **Development result (Entry 24): no variant survives Romano-Wolf on the twin** (B1 +0.026, B2 +0.043, B3 +0.028, B4 +0.064; smallest adjusted p 0.075), so none moves to Holdout C. On the paper mix (information), B1 and B2 survive. B4 recovered twice the frozen rule's 2008–09 rebound, but under half of buy-and-hold's.
   - **Track B ended at development (Entry 27).** Nothing passed, so nothing can reach Holdout C.
-- **Track C: the variance risk premium** (`src/vrp/`, Entry 18). VRP = (VIX/100)²/12 minus our forecast of next month's variance (M0, M4, M6). Phase C0 is EDA on development data (January 1990 to December 2018). It becomes a strategy only if a gate fixed before the EDA passes. The gate needs, for one model and horizon: a positive predictive slope with Holm p below 5% across 9 tests, the same sign in three equal eras, and a positive out-of-sample R².
+- **Track C: the variance risk premium** (`src/vrp/`, Entries 18–23). VRP = (VIX/100)²/12 minus our forecast of next month's variance (M0, M4, M6). Phase C0 is EDA on development data (January 1990 to December 2018). It becomes a strategy only if a gate fixed before the EDA passes. The gate needs, for one model and horizon: a positive predictive slope with Holm p below 5% across 9 tests, the same sign in three equal eras, and a positive out-of-sample R².
   - The CBOE PutWrite index is a new source (`src/vrp/putwrite.py`). Its development rows are kept, its Holdout B rows are sealed by hash in `data/putwrite_lock.json`, and Holdout C is never written. CBOE's free file starts in 2007.
   - **C0 result (Entry 19): the gate passes, in all 9 cells.** VRP predicts the market's excess return 1, 3 and 6 months ahead (t 3.6 to 6.2), with the same sign in all three eras and out-of-sample R² from 1.0% to 8.3%. It still holds without 2008–09. Accuracy does not pay: the least accurate model (M0) gives the largest t. The PutWrite index's predictability (2007–2018) does not carry out of sample.
   - **C1 (Entry 20): equity timing on SPY with M4's VRP.** Size = c_t × μ̂ / σ̂², capped at 1.5. μ̂ is next month's excess return forecast from VRP, shrunk 50% toward its expanding mean and floored at 0. It is reported against the volatility-only SPY rule, to isolate what VRP adds.
-  - **C2 result (Entries 21–22): inconclusive, and VRP added nothing on development.** C1 is scored on SPY after costs, February 1998 to December 2018 (251 months). It gained +0.192 over buy-and-hold (p 0.12; smallest detectable gain 0.40). The volatility-only SPY rule gained +0.207 on the same months, so C1's edge over it was −0.015 (p 0.56). It halved the drawdown (−31% against −56%) and held nothing in October 2008. 
+  - **C2 result (Entries 21–22): inconclusive, and VRP added nothing on development.** C1 is scored on SPY after costs, February 1998 to December 2018 (251 months). It gained +0.192 over buy-and-hold (p 0.12; smallest detectable gain 0.40). The volatility-only SPY rule gained +0.207 on the same months, so C1's edge over it was −0.015 (p 0.56). It cut the maximum drawdown to −31% against −56% (about −40% for buy-and-hold at the same volatility), and held nothing in October 2008.
   - **Track C stops here (Entry 23).** Holdout B can't answer whether VRP adds value over volatility timing (92 months, an expected standard error of about 0.16), and much of its result is already known from Phase 9. It stays unopened for any later VRP idea. Like for like, μ̂ and the variance forecast spread about equally: VRP did move the size, it just didn't improve the Sharpe ratio.
 
+- **Track D: the write-up** (`reports/research_report.md`, `src/writeup.py`). The Phases 1–9 report with a Phase 10 postscript, its two figures built from saved outputs only, and the summary at the top of this README.
+
 ```bash
-python -m pytest test/test_overlay.py test/test_retest.py test/test_fixes.py test/test_vrp.py   # simulated data only
+python -m pytest test/test_overlay.py test/test_retest.py test/test_fixes.py test/test_vrp.py test/test_vrp_strategy.py   # simulated data only
 python -m src.vrp.build                                                        # Track C's Phase C0: the EDA and its gate
 python -m src.vrp.walkforward                                                  # Track C's C2: C1's development walk-forward
 python -m src.overlay.build --power                                            # Track A's 36-month power check
 python -m src.fixes.build --mechanics --books twin spy                         # Track B end to end on development: counts only
 python -m src.fixes.build                                                      # Track B's development run (decided in Entry 20)
+python -m src.writeup                                                          # the report's figures, from saved outputs only
 ```
