@@ -55,17 +55,18 @@ PAPER = ["primary", "best", "fixed"]
 
 # ---------------------------------------------------------------- 1: the panel
 
-def panels(rehearse: bool) -> dict:
+def panels(rehearse: bool, confirm: str = HOLDOUT_PASSPHRASE) -> dict:
     """The joined panel, the paper and ETF panels cut where their data end, the first holdout day, and the
-    episodes. The rehearsal uses development data only, BAB losing its last month as AQR's file does."""
+    episodes. The rehearsal uses development data only, BAB losing its last month as AQR's file does.
+    confirm: the loader's passphrase (Phase 10's runner, src/retest, passes its own)."""
     if rehearse:
         panel, ohlc = load_dev().copy(), load_etf_ohlc_dev()
         last = panel.index.to_period("M") == panel.index[-1].to_period("M")
         panel.loc[last, REHEARSAL["drop_last_month"]] = np.nan
         start, episodes = pd.Timestamp(REHEARSAL["start"]), REHEARSAL["episodes"]
     else:
-        panel = setup.join(load_dev(), load_holdout(confirm=HOLDOUT_PASSPHRASE))
-        ohlc = setup.join(load_etf_ohlc_dev(), load_holdout(confirm=HOLDOUT_PASSPHRASE, table="etf_ohlc"), date="date")
+        panel = setup.join(load_dev(), load_holdout(confirm=confirm))
+        ohlc = setup.join(load_etf_ohlc_dev(), load_holdout(confirm=confirm, table="etf_ohlc"), date="date")
         start, episodes = HOLDOUT_START, EPISODES
     if start != pd.Timestamp(HOLDOUT_RULES["start"]) and not rehearse:
         raise ValueError("config.HOLDOUT_START and HOLDOUT_RULES['start'] disagree")

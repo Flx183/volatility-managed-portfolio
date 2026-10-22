@@ -1341,3 +1341,711 @@ None of them changes a reading.
 - **The holdout cannot rule out a modest true edge,** but the large development gains did not show up in it.
 
 Every paper result is an upper bound: paper BAB and profitability cannot be traded, and the paper books carry no costs.
+
+---
+
+## Entry 15 — 2026-10-21: after the holdout: three samples, reusing Holdout B, and the sealed forward holdout (Holdout C)
+
+**Status.** Written on 2026-10-21, after Phase 9 opened the holdout (Entry 14) and before any Phase 10 result. It governs every strategy tested from Phase 10 on. The rules are the user's plan of 2026-10-21; those marked *(my addition)* or *(my choice)* were set by Claude with this entry. The rule tables are in `src/retest/__init__.py` (`RETEST_RULES`, `GRADES`, `CONTAMINATION`), read-only and pinned in `test/test_frozen_rules.py`.
+
+### 1. Why new rules
+
+- Phase 9's final test read inconclusive: the primary gained +0.088 (p 0.31) over 91 months, against a minimum detectable effect of 0.45. Every other book read inconclusive too (Entry 14).
+- The holdout has now been seen. A new idea tested on it is no longer tested blind, and what Phase 9 showed can leak into the next strategy. Hence the grades, the contamination log and a new sealed sample.
+
+### 2. Three samples
+
+| Sample | Dates | What it is for | Status |
+|---|---|---|---|
+| Development | 1 July 1926 to 31 December 2018 (VIX from 1990) | EDA, fitting, tuning, choosing | Open |
+| Holdout B (reused) | 1 January 2019 to 31 August 2026 | Test only: one run per frozen strategy | Seen in Phase 9 |
+| Holdout C (forward) | 1 September 2026 onward | Test only: monthly paper trading | Sealed now |
+
+The boundaries are `config.HOLDOUT_END` and `config.FORWARD_START`.
+
+### 3. Reused as is
+
+- The primary test: the Sharpe gain over buy-and-hold, Ledoit-Wolf with a Newey-West covariance (6 lags), one-sided at 5% (Entry 3).
+- Its three readings (edge, inconclusive, no meaningful edge) and the minimum detectable effect at 80% power.
+- Romano-Wolf and Holm for families (Entry 6), and the deflated Sharpe ratio.
+- The shuffled-forecast placebo.
+- The three crisis questions (Entry 8), on Holdout B's 2020 and 2022 episodes (Entry 13).
+
+### 4. Holdout B
+
+- **Test only.** Never fit, tune, screen or choose on it.
+  - It loads only through the logged loader: `load_holdout(confirm="holdout B retest")` *(my choice of passphrase)*.
+  - Phase 9's passphrase still opens it, but Phase 9's runner refuses to run again.
+- **Freeze first, then one run.** Each strategy fixes its code, parameters and a dated entry, pinned to a commit, and only then runs on Holdout B, once.
+  - The runner is new: `src/retest/harness.py`. It reuses Phase 9's panel (`src/holdout/build.panels`, which now takes the passphrase as an argument) and writes `reports/phase10_<strategy>_*.csv`. Phase 9's runner and files are otherwise untouched.
+  - **Before it opens anything, it refuses** *(my implementation)*:
+    - a strategy whose results file (`reports/phase10_<strategy>_results.csv`) exists, so a second run is refused;
+    - code that is not frozen. The commit named must be HEAD or an ancestor of it, and its `PREREGISTRATION.md` must hold the strategy's entry. `src/` must equal `src/` at that commit: no change since, committed or not, and no new file.
+- **Grades.** Every Holdout B result carries one:
+  - **clean**: the idea came from development data or the papers;
+  - **exploratory**: the idea came from Phase 9's results (Section 5). An exploratory result is not evidence; only Holdout C can confirm it.
+- **Power is unchanged.** About 0.45 a year is the smallest Sharpe gain Holdout B can detect. It can catch a large failure, not prove a small edge.
+- **Rehearsal.** Phase 9's rehearsal is reused for every Phase 10 strategy: development data only, a pseudo-holdout from 2011. It never opens the holdout.
+
+### 5. The contamination log: what Phase 9 showed, and what it could bias
+
+| Seen in Phase 9 | Ideas it could bias |
+|---|---|
+| 2020's rebound missed: SPY timed +19% against +77% | Trend gates, re-entry rules |
+| Mean size 0.47; the holdout's volatility above 1997–2018's | Explicit volatility targets, a rolling c_t |
+| The downside-volatility variant fell from the best on development to −0.114 | Dropping or keeping downside volatility |
+| The screen held market, momentum and BAB at every year-end | The asset list |
+| Every Phase 9 book's Sortino ratio, maximum drawdown, CER and volatility (`reports/phase9_results.csv`) *(my addition)* | The choice of a risk metric |
+| Every Phase 9 book's monthly returns, timed and buy-and-hold (`data/processed/phase9_runs.parquet`) *(my addition)* | Any variant whose returns are a fixed function of a Phase 9 run, such as a blend of the timed run and buy-and-hold: its Holdout B result can be computed without a new run |
+
+An idea in the second column is graded exploratory on Holdout B.
+
+### 6. Holdout C
+
+- **Sealed from 1 September 2026.** No strategy is run on data after 31 August 2026 until it is frozen.
+  - In code *(my implementation)*:
+    - the data build puts no row after 31 August 2026 into a holdout file and writes no file for those rows (`src/data/build.split`, `forward_rows`);
+    - the split check counts the sealed rows;
+    - the loader refuses a table that reaches into Holdout C.
+  - The current snapshot ends on 31 August 2026, so nothing in it changed.
+  - A `--refresh` today would download Holdout C's months into `data/raw/`. That is allowed; the rule is that no strategy runs on them.
+- **Paper trading.** Each frozen strategy is paper traded monthly from its freeze date. Each month's position is logged before the month starts.
+- **One formal test date** per strategy, fixed in its entry. The plan proposes 36 months after the freeze.
+- **Interim looks.** Every 12 months, and they only check for a large failure (the no-meaningful-edge reading). Peeking for a win is not allowed: it inflates false positives.
+- **Open until the first paper book is frozen** *(my addition; not decided here)*.
+  - Kenneth French's factors and AQR's BAB are published monthly, weeks after the month ends, and they revise their history.
+  - So a paper book's position cannot be logged before the month starts from their data, and a later download changes past months. SPY's position can be logged.
+  - Before a paper book is paper traded, its entry says what is logged (the rule's commit and the data vintage) and how new months are appended to the sealed history.
+
+---
+
+## Entry 16 — 2026-10-21: Track A, vol timing as a risk overlay (draft, not frozen)
+
+**Status.** A draft, written before any Track A result on any data.
+- No Track A variant has been run on development data, Holdout B or Holdout C. The code in `src/overlay/` is verified on simulated data only (`test/test_overlay.py`).
+- Section 6 lists the user's calls before any run. Until every one is made, `require_decided()` refuses (`OPEN` in `src/overlay/__init__.py`).
+- This entry may be edited until it is frozen, because no result it governs exists yet. The freeze, its date and its commit will be recorded here.
+
+### 1. The claim
+
+Track A tests what the data already point to: timing improves downside-risk-adjusted returns even when the Sharpe ratio does not move. This is also how the industry uses it.
+- **H1.** The timed book's primary risk metric beats buy-and-hold's.
+- **H0.** It does not.
+
+### 2. The variants (a family of 3, Holm-adjusted)
+
+| Variant | Rule | Grade on Holdout B (the plan's) |
+|---|---|---|
+| A0, the frozen books | Phase 9's primary, and SPY with M2, unchanged | Not testable: their risk numbers are printed in Phase 9. Holdout C only |
+| A1, rolling volatility target | Size = buy-and-hold volatility over the year's 10-year window / forecast volatility, cap 1.5 | Exploratory (the 0.47 size was seen) |
+| A2, fixed blend | Size = 0.5 + 0.5 × c_t / forecast variance | Clean (Wang and Yan); see Section 7 |
+
+How the code reads the rules *(my choices, open to change before the freeze)*:
+- **A1's units.** Size = σ̂_y × √(22/252) / √forecast. σ̂_y is a volatility a year and the forecast a 22-trading-day variance, so σ̂_y is read over the same 22 days.
+- **A1's σ̂_y.** Set at each December year-end and held for the next year.
+  - A screened book: Entry 10's σ̂_y, the buy-and-hold mix's volatility over its recipe's 10-year window (`screened.year_scale`).
+  - SPY alone: SPY's volatility over the 10 years up to the year-end.
+- **A2's cap.** The managed half is A0's size with its own cap of 1.5, so A2 holds at most 1.25. A2 is then exactly half buy-and-hold and half A0.
+- **Months.** A1 and A2 hold in the months A0 holds (those with a c_t), so all three are scored on the same months.
+- **Forecasts.** Each book's frozen model: M3 for the screened book, M2 for SPY.
+
+### 3. The primary metric (the user decides before any run)
+
+| Option | Why | Weak spot |
+|---|---|---|
+| **Sortino gain** (recommended) | Uses every month; scale-free like Sharpe | Still noisy over 91 months |
+| Expected shortfall 5%, at matched volatility | Targets the tail directly | Only about 5 tail months in Holdout B |
+| Maximum drawdown | What investors feel | One number per sample, almost no power |
+
+- **The Sortino gain test** (`metrics.sortino_gain_test`) is the primary test's machinery applied to another ratio *(my choice: the plan's "reused as is")*.
+  - The delta method on (μ_timed, μ_bh, E min(r_timed, 0)², E min(r_bh, 0)²), with the same Newey-West covariance.
+  - One-sided at 5%, with the three readings and the minimum detectable effect.
+  - Its standard error is within 2% of the spread across 2,000 simulated samples.
+- **Matched volatility** *(my addition)*. Any risk number that is not scale-free is compared with buy-and-hold scaled to the timed run's realized volatility over the same months.
+  - This covers expected shortfall (as the plan says), and also maximum drawdown and the worst month.
+  - A run held at half size, with no timing at all, halves its drawdown, shortfall and worst month. Matched, it wins nothing (`test_holding_less_without_timing_wins_nothing_at_matched_volatility`).
+  - Phase 9's primary ran at 3.0% volatility against 6.4%. Scaled to 3.0%, buy-and-hold's −6.8% drawdown is roughly −3.2%, against the timed −2.8%. Most of the halved drawdown in Entry 14 is the smaller size.
+
+### 4. Reported beside it
+
+- Maximum drawdown, expected shortfall 5% and the worst month: each raw, and with buy-and-hold at matched volatility.
+- Rebound capture: Entry 8's crisis questions, on the episodes the sample holds.
+- CER (γ = 5), both volatilities and the mean size.
+- Cost drag: the Sharpe and Sortino gains before costs minus after, and the costs a year.
+
+### 5. The pass rule
+
+- Track A holds if its primary metric reads **edge on Holdout C at the formal date**.
+- Holdout B can only drop a variant (a large loss) or give early clean evidence for A2.
+- If Track A holds, the deliverable is an overlay function for any long book, and a one-page fact sheet: the volatility cut, the drawdown cut (at matched volatility), and what it costs (missed rebounds, lower CER).
+
+### 6. Open: the user's calls before any run
+
+1. **The primary metric** (Section 3).
+2. **Which books.**
+   - A0 names two: Phase 9's primary and SPY with M2. If A1 and A2 run on both, the Holm family is 6, not 3.
+   - SPY is the only book whose position can be logged before each month starts (Entry 15, Section 6), and it is the kind of long book an overlay is for.
+   - For the screened book: whether option (c) decides, as in Entry 10 (my reading: yes).
+3. **The no-meaningful-edge bound** on the primary metric's scale. The Sharpe test's 0.10 does not carry over. For symmetric returns a Sortino ratio is about √2 times the Sharpe ratio, so the like-for-like bound is about 0.14.
+4. **Holdout C's formal date.** The plan proposes 36 months after the freeze.
+5. **A2's grade on Holdout B** (Section 7).
+
+### 7. Notes written before any run *(my additions)*
+
+- **A2 on Holdout B is not blind.**
+  - When nothing is charged for size, a run's monthly excess return is linear in its size. The paper books carry no costs, so A2's monthly excess return is exactly 0.5 × buy-and-hold's + 0.5 × A0's (`test_a2_is_exactly_half_buy_and_hold_and_half_a0_when_nothing_is_charged`).
+  - Both series are saved for every Phase 9 book (`data/processed/phase9_runs.parquet`), so A2's Holdout B result can be computed without a new run. For SPY, costs make it nearly, not exactly, the same. Nobody has computed it.
+  - By the contamination log's last row, A2 would then be exploratory, and Holdout B could give no clean evidence for any Track A variant.
+- **Holdout C's power at 36 months.**
+  - The Sharpe test's standard error over 91 months was 0.183 (Entry 14). Over 36 months it is about 0.183 × √(91/36) = 0.29, so the minimum detectable effect is about 0.72 a year. In Sortino units it is about 1.4 times that.
+  - Detecting a Sharpe-scale gain of 0.2 would take about 470 months (39 years).
+  - So within 36 months Holdout C can catch a large failure, but it will rarely confirm a modest risk benefit.
+
+These notes are facts about the design, written before any run. They change no rule here; the user's calls in Section 6 do.
+
+---
+
+## Entry 17 — 2026-10-22: Track B, fixes to the timing rule (draft, not frozen)
+
+**Status.** A draft, written before any Track B result on any data.
+- No Track B variant's return, size or test has been seen on development data, Holdout B or Holdout C. The code in `src/fixes/` is verified on simulated data (`test/test_fixes.py`).
+- A counts-only check ran every variant end to end on development data for two books (Section 8). It printed no return, size, test or crisis number, and wrote nothing.
+- Section 6 lists the user's calls before any run. Until both are made, `require_decided()` refuses, and so does the development build (`OPEN` in `src/fixes/__init__.py`).
+- This entry may be edited until it is frozen, because no result it governs exists yet. The freeze, its date and its commit will be recorded here.
+
+### 1. The claim
+
+Track B tries four rule changes, each aimed at a cause found in Phase 9. Each is scored on the Sharpe ratio with the primary test as before (Entry 3). Small gains at best are expected, so "inconclusive" on Holdout B.
+
+### 2. The books
+
+- **Primary (the user decides).** The plan recommends SPY alone after costs: it is tradeable and closest to the paper's market result.
+- **Secondary.** The paper factor mix (Phase 9's primary: the real-time screen, M3, option (c)).
+- **SPY's main development sample.** The long-history twin: the market factor at SPY's costs, with M2 and c_t from 120 pairs, July 1946 to December 2018 (870 months; Phase 6's SPY reference). SPY itself has 263 development months, February 1997 to December 2018.
+
+### 3. The variants (a family of 4, read through Romano-Wolf and Holm)
+
+| Variant | Rule | Fixes | Source | Grade on Holdout B (the plan's) |
+|---|---|---|---|---|
+| B1, fixed blend | Size = 0.5 + 0.5 × c_t / forecast variance | Unstable mix weights | Wang and Yan | Clean; see Section 7 |
+| B2, downside fixed blend | B1 with downside variance | The same, plus return timing | Wang and Yan | Clean (the downside variant's Phase 9 loss biases against it, not for it) |
+| B3, conditional targeting | Size 1 unless the forecast volatility is in the top or bottom 20% of its trailing 10 years; then the usual rule | Noise and turnover in normal months | Bongaerts, Kang and van Dijk (2020) | Clean |
+| B4, trend gate | Above the 10-month average, the size never drops below 1; below it, the usual rule | Missed rebounds | The common trend rule | Exploratory: built after seeing 2020 |
+
+How the code reads the rules *(my choices, open to change before the freeze)*:
+- **The usual rule** is each book's frozen rule: c_t / forecast variance, capped at 1.5, with the book's own forecast, c_t minimum and costs.
+- **B1 and B2's cap.** The managed half is the frozen size with its own cap, so they hold at most 1.25. B1 is Track A's A2 on the same book.
+- **B2's downside variance**, read literally: B1's power (1) on the downside forecast. That is the book's forecast × the down-day share of the last 22 days' Σ r² (Phase 7's `runs.downside`), with its own c_t. Phase 7's downside-volatility rule used power 0.5; B2 changes only the forecast.
+- **B3's trailing 10 years.** At each month-end, the forecast's rank among its last 120 month-end forecasts, itself included.
+  - Top 20% means a rank above 0.8, and bottom 20% a rank of 0.2 or less: 24 of 120 at each end. Ranking the variance or the volatility gives the same order.
+  - While fewer than 120 forecasts exist, B3 uses all of them, at least the book's c_t minimum. Only SPY's development months before 2004 have fewer than 120.
+  - In a normal month the size is 1 and is not counted as capped.
+- **B4's 10-month average.** The book's value at size 1 (total return: excess return plus rf) at each month-end, against the mean of its last 10 month-end values, that one included.
+  - Above: the larger of 1 and the frozen size, so at most 1.5.
+  - At or below: the frozen size.
+- **Timing.** Both signals read the table of the recipe held next month, up to the decision close. That table is back-cast over the mix's whole history, as the forecast and c_t are.
+- **Months.** All five runs (the frozen run and the four variants) hold in the frozen run's months, and the family is scored on those.
+
+### 4. Every threshold, fixed now
+
+| Threshold | Value | From |
+|---|---|---|
+| Blend (B1, B2) | 0.5 at size 1 | the plan; Wang and Yan |
+| Extreme states (B3) | the top and bottom 20% | the plan; Bongaerts, Kang and van Dijk (2020) |
+| B3's window | 120 month-end forecasts | the plan's "trailing 10 years" |
+| Trend (B4) | 10 month-ends | the common 10-month rule |
+| Cap | 1.5 | Entry 1 |
+| Test | one-sided 5%, Newey-West 6 lags, the three readings | Entry 3 |
+| Family | Romano-Wolf (stationary bootstrap, blocks 6 and 12, the larger p, 10,000 draws, seed 0) and Holm | Entry 6 |
+
+No threshold is estimated from data, so step 1's "from development data" holds trivially: none reads Holdout B or C.
+
+### 5. The steps and the pass rule
+
+1. **Fix every threshold** (Section 4), before any run.
+2. **Design B4 only on development crises:** 1929–1932, 1987, 2000–2002 and 2008–2009.
+   - B4's design is the plan's, unchanged. The crises are read with Entry 8's three questions (`reports/phase10_trackb_dev_crises.csv`).
+   - The frozen rule has no c_t on the market before 1946, so the twin covers 1987, 2000–2002 and 2008–2009, not 1929–1932. SPY covers 2000–2002 and 2008–2009.
+3. **The development walk-forward.** Each book's family of four goes through Romano-Wolf and Holm (`reports/phase10_trackb_dev_family.csv`).
+   - The primary book's development family decides: the twin's if SPY is primary, the paper mix's if it is.
+   - The other books are reported beside it.
+4. **Freeze, then run once on Holdout B** (`src/retest/`). Each survivor's paper trading starts on Holdout C.
+
+**The pass rule.** A variant moves to Holdout C only if its development gain survives Romano-Wolf (adjusted p below 0.05) and Holdout B does not read "no meaningful edge". Holdout C decides.
+
+### 6. Open: the user's calls before any run
+
+1. **The primary book.** The plan recommends SPY, with development read on the twin.
+2. **B1's grade on Holdout B** (Section 7).
+
+### 7. Notes written before any run *(my additions)*
+
+- **B1 is Track A's A2, and its Holdout B result is already implied.**
+  - On the paper mix, B1's monthly excess return is exactly 0.5 × buy-and-hold's + 0.5 × the frozen run's (`test_b1_is_half_size_one_and_half_the_frozen_size`). Both are saved for every Phase 9 book (`data/processed/phase9_runs.parquet`). On SPY, costs make it nearly the same.
+  - By Entry 15's contamination log, B1 is therefore exploratory on Holdout B, and its run there adds nothing new.
+  - If Tracks A and B both keep it, it is one rule tested twice, and it should be counted once.
+- **B2's grade is an exception to Entry 15.** The log lists "dropping or keeping downside volatility" as an idea Phase 9 could bias, which would make a downside variant exploratory. The plan grades B2 clean on purpose: Phase 9's downside loss argues against B2, not for it. The exception is recorded here so it is on file.
+- **Power on development.**
+  - The twin's frozen rule gained +0.030 (p 0.32) over its 870 months (Entry 7). Its standard error is about 0.064, and its minimum detectable effect about 0.16.
+  - Surviving Romano-Wolf across four tests needs a t of about 2.2, a gain near 0.14: about five times the frozen rule's gain on the same months.
+  - B1 and B2 move half of the frozen size, so their gains are likely smaller than the frozen rule's.
+  - **The most likely outcome is that no variant survives on development, so none reaches Holdout C.** SPY's own development months gave the frozen rule +0.165 (p 0.13, minimum detectable effect 0.37; Entry 7).
+- **Holdout C's power**, as in Entry 16: at 36 months the minimum detectable Sharpe gain is about 0.72.
+
+These notes are facts about the design, written before any run. They change no rule here; the user's calls in Section 6 do.
+
+### 8. The counts-only check
+
+`python -m src.fixes.build --mechanics --books twin spy`, on 2026-10-22, before any result. It printed only these counts:
+
+| Book | Common months | Every run on exactly those months | Empty cells in the family's rows | Crisis windows covered (episodes × 5 runs) |
+|---|---|---|---|---|
+| Twin | 870, July 1946 to December 2018 | yes | 0 | 15 of 20 (all but 1929–1932) |
+| SPY | 263, February 1997 to December 2018 | yes | 0 | 10 of 20 (2000–2002, 2008–2009) |
+
+The month counts match Phase 7's for both books (Entry 7). The paper mix was not run: it needs M3's walk-forward on every screened mix, 30 to 60 minutes in Phase 7. Its path (several recipes, a cash year) is checked on simulated data (`test_a_screened_book_reads_each_years_recipe_and_skips_its_cash_years`).
+
+---
+
+## Entry 18 — 2026-10-22: Track C, Phase C0: the variance risk premium's EDA and its gate
+
+**Status.** Written before the EDA ran.
+- No VRP value, regression or R² has been computed on real data.
+- What was known about the new data: the PutWrite file's dates. It has daily values from January 2007, 7 stray rows before, and 1,962 rows after 2018 that were counted, not read.
+- The code (`src/vrp/`) is verified on simulated data (`test/test_vrp.py`). The rules are in `src/vrp/__init__.py` (`TRACK_C`, `PUTWRITE`).
+- Rules marked *(my choice)* were set by Claude where the plan left a detail open.
+- C0 runs once, by `python -m src.vrp.build`. Its outcome goes in the next entry.
+
+### 1. The idea
+
+Track C moves the forecasts to a job where accuracy is the payoff: the gap between the variance options price in (VIX) and the variance we forecast.
+
+VRP_t = (VIX_t / 100)² / 12 − σ̂²_{t+1}
+
+- The first term is the market's implied variance for the next month. VIX covers 30 calendar days (about 21 trading days) and the forecast covers 22: a small mismatch, noted.
+- The second term is our forecast of next month's variance, from three models: M0 (rolling realized variance), M4 (HAR) and M6 (HAR-X).
+- M6 already uses VIX as an input, so its VRP partly nets VIX against itself. M4 is the cleaner comparison.
+
+### 2. Data
+
+- **Sample.** Development only: the 348 month-ends from January 1990 (VIX's first month) to December 2018.
+- **Implied variance.** (VIX/100)² / 12 at the close of each month's last trading day.
+- **Forecasts.** Phase 6's walk-forward on the market factor's daily excess returns, each made at the same close for the next 22 trading days.
+  - M0 is the last 22 days' Σ r²; M4 is HAR; M6 is HAR-X on M4's inputs (the market fails Test 3; Entry 5).
+  - M6's VIX input enters its refits after 60 months of VIX (from 1995), and its event counts after 60 months of the calendar (Phase 6's rule). Before then, M6 runs with fewer inputs.
+- **Returns** *(my choice)*. The market factor's monthly excess return, compounded: SPY's long-history twin.
+  - SPY starts in February 1993, and the plan's sample starts in 1990.
+  - SPY's own months are reported beside the market's, as information; they are not in the gate.
+- **h months ahead.** The compounded excess return over months t+1 to t+h: Π(1 + r + rf) − Π(1 + rf).
+- **The PutWrite index** (question 5).
+  - CBOE's file has daily values only from January 2007. The index's history back to 1986 is not in it, and CBOE's older address no longer serves it. So question 5 reads January 2007 to December 2018.
+  - The file is split as Phase 1 splits the panel *(my implementation)*:
+    - development rows written;
+    - Holdout B rows written and sealed by content hash in `data/putwrite_lock.json`, with the file's URL, fetch time and SHA-256;
+    - Holdout C rows not written.
+  - C0 never reads the Holdout B rows.
+
+### 3. The questions, and how each is measured
+
+1. **What does VRP look like?** In %² a month: mean, median, standard deviation, the share of months positive, and the AR(1) slope. Also its months around three episodes *(windows my choice)*: June to December 1998, July to December 2001, and July 2008 to March 2009.
+2. **Does VRP predict excess returns 1, 3 and 6 months ahead?**
+   - The regression is r_{t→t+h} = a + b × VRP_t, by OLS.
+   - Newey-West errors use 6 + h − 1 lags *(my choice: the repository's monthly 6, plus h − 1 for the overlap)*.
+   - The test is one-sided for b > 0 (the expected sign, after Bollerslev, Tauchen and Zhou 2009), with a normal approximation *(my reading of "the expected sign": the repository's tests are one-sided)*.
+3. **Does the sign hold in each of three equal eras?** Each regression's months are split into equal thirds by count. The slope's point estimate must have the expected sign in each. That is the sign rule of the Phase 3 stability filter, with no condition on size or significance.
+4. **Does accuracy pay here?**
+   - Each model's accuracy is its mean QLIKE (Phase 6's loss) against the next 22 days' realized variance, over the same months.
+   - It is set beside its VRP's mean t and mean out-of-sample R² across the three horizons.
+   - With three models, this is descriptive: no test.
+5. **Does VRP predict put-write returns?** The same regressions, on the PutWrite index's monthly excess returns (its month-end level change minus the month's compounded rf; the index's collateral earns T-bill interest). Information only: no Holm, and not in the gate.
+
+**The out-of-sample R²** (the gate's third condition) follows Campbell and Thompson: R²_OS = 1 − Σ(r − r̂)² / Σ(r − r̄)².
+- It uses an expanding window. At each month t, the regression and the benchmark mean are fitted on the pairs complete by t's close (s + h ≤ t).
+- The first prediction comes once 60 complete pairs exist *(my choice: Phase 6's minimum for a VIX input)*. That is January 1995 at h = 1.
+- The benchmark mean uses the same training window, from 1990, not all of history *(my choice)*.
+
+### 4. The gate (the plan's, written before the EDA is run)
+
+C0 goes to a strategy only if, for at least one forecast and horizon (the same cell), all three hold:
+- the predictive slope has the expected sign, with a Holm-adjusted p below 5% across the 9 tests (3 forecasts × 3 horizons);
+- the sign holds in all three eras;
+- the expanding-window out-of-sample R² on development is positive.
+
+Holm runs across the market's 9 tests only. The SPY and PutWrite tests are information.
+
+### 5. What follows
+
+- **If the gate fails,** Track C stops at C0, and the EDA is reported.
+- **If it passes,** C1 follows: the user picks one primary use.
+  - Equity timing: SPY's size rises with VRP, combined with volatility scaling, capped between 0 and 1.5. Its main risk is overlap with Track B.
+  - Put-write sizing: put-write exposure scaled by VRP and our volatility forecast. Its main risk is short-volatility crashes (February 2018, March 2020).
+  - Then C2 to C4: the walk-forward on development with the Phase 5 engine and the primary test; the freeze; one run on Holdout B, graded clean because no VRP result has been seen on it; paper trading on Holdout C.
+
+### 6. Expectations, written before the run *(my additions)*
+
+- **The result is not fully independent of the literature.** Bollerslev, Tauchen and Zhou's sample (1990–2007) lies inside this one. So a pass here would partly re-find a published result. Their VRP also used high-frequency realized variance; ours uses daily data.
+- **The gate is demanding.** For the strongest cell to clear Holm across nine tests, its one-sided p must be below 0.05 / 9 ≈ 0.0056.
+- **The out-of-sample R² of return predictors is usually small,** and often negative (Welch and Goyal 2008). It is the condition most likely to fail.
+
+---
+
+## Entry 19 — 2026-10-22: Track C, Phase C0 outcome: the gate passes
+
+**Status.** Written after the one run, and Entry 18 is not edited.
+- `python -m src.vrp.build` ran once on 2026-10-22, in 3 seconds, on development data only, under Entry 18's rules unchanged.
+- The PutWrite file was sealed in the same run (`data/putwrite_lock.json`). Its 1,926 Holdout B rows are hashed, not read. Its 36 Holdout C rows were not written.
+- Sections 1–5 report the run under Entry 18. Section 6 is information added after the results were seen; it is labelled as such and changes no reading.
+- One bug was found and fixed before the run, by a simulated test: the PutWrite coverage check started at the file's first date instead of that month's first day. No real-data result existed then.
+
+### 1. The gate: passes, in all 9 cells
+
+`reports/phase10_trackc_gate.csv` and `_tests.csv`. The market factor's excess return, January 1990 to December 2018:
+
+| Model | h | Months | Slope t | Holm p | Eras (slope: 1st / 2nd / 3rd third) | Out-of-sample R² |
+|---|---|---|---|---|---|---|
+| M0 | 1 | 347 | 5.88 | < 0.0001 | + / + / + | 4.4% |
+| M0 | 3 | 345 | 6.21 | < 0.0001 | + / + / + | 7.9% |
+| M0 | 6 | 342 | 4.03 | 0.0001 | + / + / + | 1.0% |
+| M4 | 1 | 347 | 3.58 | 0.0002 | + / + / + | 2.4% |
+| M4 | 3 | 345 | 4.82 | < 0.0001 | + / + / + | 5.1% |
+| M4 | 6 | 342 | 3.93 | 0.0002 | + / + / + | 8.3% |
+| M6 | 1 | 347 | 3.74 | 0.0002 | + / + / + | 1.9% |
+| M6 | 3 | 345 | 5.02 | < 0.0001 | + / + / + | 6.2% |
+| M6 | 6 | 342 | 3.92 | 0.0002 | + / + / + | 5.2% |
+
+- **Every cell meets all three conditions**, so the gate passes and Track C goes to C1. The eras are January 1990 to August 1999, September 1999 to April 2009, and May 2009 to the end.
+- **SPY's own months** (February 1993 on; information) give the same picture: t from 3.3 to 6.0, the sign in every era, and out-of-sample R² from 1.7% to 9.3%.
+- **The timing was checked after the run** (Section 6) and is as Entry 18 says. The implied variance is the last trading day's VIX (59.89 on 31 October 2008), the M0 forecast is that month's realized variance, and each target is the return of the months after.
+
+### 2. Question 1: what VRP looks like (`_describe.csv`, `_episodes.csv`)
+
+| Model | Mean (%² a month) | Median | Standard deviation | Months positive | AR(1) |
+|---|---|---|---|---|---|
+| M0 | 9.1 | 9.3 | 23.5 | 86% | 0.34 |
+| M4 | 11.3 | 7.1 | 15.3 | 88% | 0.44 |
+| M6 | 11.9 | 8.5 | 10.7 | 99% | 0.66 |
+
+- **Implied variance averages 35.7 %² a month** (a VIX of about 20.7). The forecasts average 23.8–26.6.
+- **M6's VRP is positive in 99% of months and the most persistent.** It reads VIX itself, so it nets VIX against itself, as the plan warned.
+- **1998 and 2001.** All three VRPs jumped in August 1998 (67–101) and in October 2001 (32–59): implied variance rose faster than the forecasts.
+- **2008.** The models part ways.
+  - M0's VRP fell to −92 in September 2008 and −245 in October: last month's realized variance exceeded even a VIX of 60.
+  - M4's stayed positive (+34 in October), because HAR smooths.
+  - M6's was −21 in October.
+  - The market then fell another 7.7% in November.
+
+### 3. Question 4: accuracy does not pay here (`_accuracy.csv`)
+
+| Model | Mean QLIKE (rank) | Mean slope t across horizons | Mean out-of-sample R² |
+|---|---|---|---|
+| M6 | 0.227 (1, most accurate) | 4.23 | 4.5% |
+| M4 | 0.256 (2) | 4.11 | 5.3% |
+| M0 | 0.344 (3) | 5.37 | 4.4% |
+
+- The least accurate forecast, M0, gives the largest t, and the out-of-sample R² is about the same for all three. Q4's lesson does not flip: a more accurate forecast does not give a stronger predictor.
+- Descriptive only: three models, no test.
+
+### 4. Question 5: the PutWrite index, January 2007 to December 2018 (information)
+
+- **In sample, every slope is positive** (t from 1.96 to 5.69, over 137–142 months).
+- **Out of sample, it does not hold.** The out-of-sample months run from 2012 only (72–82 months):
+  - the R² is negative for M4 and M6 at every horizon, down to −114% (M4, 6 months);
+  - M0 gives +4.6% at 1 month, 0.0% at 3 and −0.7% at 6.
+- **The sign fails in an era** in 4 of the 9 cells (M0 and M4 at 3 and 6 months).
+- Put-write predictability rests on 12 years that include 2008, and it does not carry out of sample.
+
+### 5. Reading
+
+- **The gate passes.** By Entry 18, Section 5, Track C goes to C1, and the user picks one primary use: equity timing or put-write sizing.
+
+### 6. Information added after the run (not a test; it changes no reading)
+
+**What follows comes from the run's own outputs, after its results were seen.**
+- **Without July 2008 to June 2009,** every cell keeps its sign in all three eras, with t from 2.5 to 4.9 and out-of-sample R² from 1.4% to 4.3%. The crisis adds strength, but it is not the whole result.
+- **The two parts of VRP**, entered separately in one regression:
+  - implied variance predicts returns positively (t 3.5 to 5.6);
+  - our forecast predicts them negatively (t −2.9 to −5.7);
+  - the strength is similar, so the gap between the two carries the information.
+  - For equity timing, this matters. Volatility scaling cuts the size when the forecast is high, which agrees with the forecast's part. Implied variance pushes the other way: holding the forecast fixed, a higher VIX predicts higher returns, where volatility scaling would hold less.
+- **The third era** (May 2009 to December 2018) lies after Bollerslev, Tauchen and Zhou's sample (1990–2007), and the slope is positive there in every cell. This is the only stretch of the result that is not a re-find of the published one, and it is a sign, not a test.
+
+---
+
+## Entry 20 — 2026-10-22: Step 0 decisions (the user's calls, before any new run)
+
+**Status.** The user's calls on the open items of Entries 15–18, made on 2026-10-22, and written before any run under them.
+- **Numbering.** The user's plan names this "Entry 19". That number already holds Track C's C0 outcome.
+- **What the user saw.** The user made these calls from my descriptions of Entries 15–19, which were not on GitHub.
+- **Step 0.** Entries 15–18 and this entry together are the plan's Step 0: the test rules, the contamination log, the decisions and the Track C gate.
+- **What governs.** Where this entry differs from the drafts in Entries 16 and 17, this entry governs. Those entries are not edited.
+- **Who set what.** Marked *(my reading)* or *(my choice)* where Claude filled in a detail the calls left open.
+
+### 1. Across all tracks
+
+- **Holdout C's formal test:** 36 months after each strategy's own freeze, for every track. The interim looks of Entry 15 are unchanged: every 12 months, and only for a large failure.
+- **Power at that date.** The minimum detectable Sharpe gain is about 0.72 at 36 months. A longer wait does not fix it: at 60 months it is still about 0.56 (0.454 × √(91/60)).
+  - So for Tracks B and C, Holdout C can only catch failures.
+  - Only Track A can get a confirmation.
+- **The record.** Entries 15–18 and this entry are Step 0. The log stays append-only: an entry that governs a result is never rewritten.
+- **The out-of-order runs are kept, and recorded here.**
+  - Track C's C0 ran on 2026-10-22, before these calls were recorded (Entry 19). It ran on development data only, under Entry 18's gate, which was fixed before it ran. No holdout was touched.
+  - Track B's counts-only check (Entry 17, Section 8) also ran before these calls. It printed no result.
+- **Commits** are made only when the user says so.
+
+### 2. Track A, the risk overlay (governs over Entry 16)
+
+- **Book:** SPY with M2 only. It is tradeable, its position can be logged before each month, and the family stays small.
+- **Variants: A0 and A1. A2 is dropped.**
+  - A0 is the frozen SPY rule: c_t / σ̂², capped at 1.5.
+  - A1 is the inverse-volatility target (Entry 16).
+  - The fixed blend moves to Track B as B1, so the family is two variants, Holm-adjusted.
+- **Primary metric: volatility stability.**
+  - σ_m is the realized volatility of month m's daily returns, for the timed run and for buy-and-hold, from the daily ledger.
+  - R = SD(ln σ_m, timed) / SD(ln σ_m, buy-and-hold), over the scored months. The log makes it scale-free.
+  - **Edge** if R < 1, one-sided at 5%, by Entry 6's paired stationary bootstrap (mean blocks 6 and 12, the larger p).
+  - **No meaningful edge** if the one-sided 95% upper bound on the reduction 1 − R is below 0.10.
+  - **What a pass means:** the overlay keeps risk steadier out of sample than buy-and-hold. It does not mean the overlay earns more, and it will be written that way.
+- **Why the rule decides it** (the user's derivation).
+  - Let size be s_t = c / σ̂_t^k, x = ln σ̂_t, and ln σ_{t+1} = x + e, with e the forecast error, uncorrelated with x.
+  - Then ln σ_{t+1}, timed = ln c + (1 − k)x + e.
+  - **Inverse volatility (k = 1, A1)** leaves only Var(e): a large cut.
+  - **Inverse variance (k = 2, A0)** leaves Var(x) + Var(e), the same as buy-and-hold. Calm months run hot and wild months run cold, and only the 1.5 cap helps.
+  - So A1 is the true overlay. If A0 fails this metric, that is a finding, not a flaw in the test.
+- **Secondary:** the Sortino gain (Entry 16's test).
+  - Its no-meaningful-edge bound is **0.16**, not 0.14. With a positive mean there are fewer losing months, so Sortino runs above √2 times Sharpe.
+  - Phase 7 measured the ratio at 1.26 / 0.746 = 1.69 timed and 1.14 / 0.733 = 1.56 buy-and-hold: about 1.6. 0.10 × 1.6 = 0.16.
+- **Fallback.** The first development step is a power check at 36 months. If volatility stability's power there is below 80%, the Sortino gain becomes the primary metric, with the 0.16 bound.
+  - **How the power is measured** *(my choice)*: on A1, on development data.
+    - The power is Φ(g / (se × √(T / 36)) − 1.645). Here g is the development reduction 1 − R, se its paired-bootstrap standard error (blocks 6 and 12, the larger), and T the development months.
+    - It is a normal approximation, like every minimum detectable effect in this file.
+  - **The development sample** *(my reading, as in Track B)*: the market factor at SPY's costs with M2, 1946–2018. SPY's own development months are reported beside it.
+- **Unchanged from Entry 16:** A1's definition and units, matched volatility for every number that is not scale-free, and the risk numbers reported beside the test.
+
+### 3. Track B, the rule fixes (governs over Entry 17)
+
+- **Primary book: SPY.** Development is read on the twin (the market factor at SPY's costs, 1946–2018). SPY's own months and the paper mix are reported beside it.
+- **B1 and B2 scale by inverse volatility, not variance.** The plan wrote "variance", in error.
+  - Wang and Yan's equation 1 is f^σ_t = c* / σ_{t−1} × f_t, and their equation 5 uses σ_Down,t−1. Their reported counts out of 103 strategies are for inverse volatility.
+  - **B1:** size = 0.5 + 0.5 × c_t / σ̂_t. The managed half has its own c_t and is capped at 1.5, so B1 holds at most 1.25.
+  - **B2:** B1 on downside volatility σ̂⁻_t, at power 0.5 with its own c_t: Phase 7's downside-volatility rule, blended. This replaces my power-1 reading in Entry 17.
+  - **B3 and B4 are unchanged.** "The usual rule" stays SPY's frozen rule, c_t / σ̂² (power 1).
+- **Grades on Holdout B.**
+  - B1 is **exploratory**. The switch to inverse volatility is made after Phase 9, and inverse volatility is milder than the rule that lost there, so the change leans in B1's favor.
+  - B2 is **clean**: the explicit exception to Entry 15's contamination log, for Entry 17's reason.
+  - B3 is clean, and B4 exploratory.
+- **B1's grade now rests on that reason alone.** Entry 17's reason (B1's holdout returns follow from Phase 9's saved runs) no longer holds: Phase 9 timed SPY by inverse variance, and B1 now uses inverse volatility.
+- **Expectation:** weak development results. The twin's frozen rule read +0.030 in Phase 7.
+
+### 4. Track C, C1: equity timing on SPY, with M4's VRP
+
+- **The rule.** s_t = c_t × μ̂_t / σ̂²_t, capped at 1.5. This is the paper's w = μ / σ², with VRP supplying μ.
+  - **μ̂_t** is next month's SPY excess return, forecast from VRP_t (M4) by an expanding-window regression. It uses Entry 18's out-of-sample construction: only pairs complete by t, from 60 pairs on.
+  - μ̂_t is shrunk 50% toward the expanding-window mean, at a fixed weight. That is Wang and Yan's lesson: fixed weights beat estimated ones.
+  - It is floored at 0 (Campbell and Thompson 2008). *(My reading of the order: shrink first, then floor, so the floor applies to the forecast that sets the position.)*
+  - **σ̂²_t** *(my reading)*: SPY's frozen forecast, M2. The only difference from the volatility-only SPY rule is then the VRP term.
+  - **c_t:** real-time, as in the engine.
+- **The conflict resolves on its own terms.** When VIX rises, both μ̂_t and σ̂²_t rise, and the data decide which wins. If the VRP slope is 0, the rule collapses to Moreira and Muir's.
+- **Reported beside the primary test:** the gain against the volatility-only SPY rule (SPY's frozen M2, inverse variance). That isolates what VRP adds.
+- **The model, M4.** M4 passed the gate in all three horizons (Entry 19).
+  - The choice is recorded after the EDA was seen. It follows Entry 18's statement, made before the run, that M4 is the cleaner comparison.
+  - M4 was not the strongest predictor (M0 had the largest t), so the choice does not lean toward the best-looking result.
+- **Still to fix in C1's design entry, before its walk-forward:** the development sample (SPY from 1993, or the market twin), the c_t minimum, and the forecast horizon of μ̂ (one month).
+
+### 5. Defaults confirmed
+
+All of Entries 16 and 17's *(my choice)* items are confirmed, with three exceptions:
+- **B2's power** is 0.5, not 1 (Section 3).
+- **The 1.25 cap** applies to B1 and B2, since A2 is gone.
+- **Entry 15's two added contamination rows** are accepted in principle. The user could not see them before this push.
+
+### 6. Expectations, written before any run
+
+- Track A is the only track with a real chance of a confirmed result on Holdout C.
+- Tracks B and C will most likely read "inconclusive" on both holdouts.
+
+### 7. A note on the fallback *(my addition)*
+
+**The fallback cannot rescue power.**
+- If volatility stability has less than 80% power at 36 months, the Sortino gain will have far less.
+- Its smallest detectable gain at 36 months is about 1.1, against a development effect of about +0.12 (Phase 7 primary: 1.26 against 1.14).
+- The fallback stands as the user decided it. If the user prefers to keep volatility stability as primary and report its power instead, that change is a new dated entry, made before the power check runs.
+
+---
+
+## Entry 21 — 2026-10-22: Track C, C1's design and C2's rules (the user's calls)
+
+**Status.** Written before C2 ran. No C1 or C2 return, size or test has been computed on real data.
+- **What was known:** the C0 gate's results (Entry 19) and Entry 20's calls.
+- **The rules** are in `src/vrp/__init__.py` (`C1`), read-only and pinned. The code is in `src/vrp/strategy.py` and `src/vrp/walkforward.py`, verified on simulated data (`test/test_vrp_strategy.py`).
+- **The user's calls of 2026-10-22:**
+  - μ̂ is estimated on the twin's data.
+  - c_t needs 36 pairs.
+  - The horizon is one month.
+  - **The run is scored on SPY itself, not on the twin.**
+- Marked *(my choice)* where Claude filled in a detail.
+
+### 1. The rule (Entry 20)
+
+size_t = c_t × μ̂_t / σ̂²_t, capped at 1.5. This is Moreira and Muir's w = μ / σ², with VRP supplying μ.
+
+### 2. Each piece, its data, and when it starts
+
+| Piece | Data | First value |
+|---|---|---|
+| VRP's variance term | the twin's M4, in every run | January 1990 |
+| μ̂: the regression's fit | the twin's monthly excess returns | first μ̂ at January 1995's close |
+| σ̂²: the variance | SPY's frozen M2 (from SPY's 12th month) | January 1994 |
+| c_t (36 pairs) and the scoring | SPY's returns, after SPY's costs | first sized month **February 1998** |
+
+- **Why the twin's M4 in every run.** SPY's own M4 would need a 10-year training window, so it would not exist until about 2003.
+- **Why the twin only for warm-up.** In Tracks A and B the twin adds 1946–1996. Here VRP starts in 1990, so the twin adds no scored months. Its only job is to warm up μ̂, so the run is scored on the instrument Holdouts B and C will test.
+- **The first sized month is February 1998, not January** (correcting the month count given in conversation).
+  - The 36 pairs of c_t run from January 1995's signal to December 1997's.
+  - The last pair ends with January 1998's return, so c_t first exists at January 1998's close.
+  - So the run scores February 1998 to December 2018: **251 months.**
+
+### 3. μ̂, exactly
+
+At each month-end t:
+1. Fit next month's twin excess return on VRP by OLS, on the pairs complete by t's close (s + 1 ≤ t), once 60 exist.
+2. Forecast at VRP_t.
+3. Shrink 50% toward the same pairs' mean, at a fixed weight.
+4. Floor at 0, after shrinking (Entry 20).
+
+**This is the gate's own evidence.** The window, the pairs and the mean are exactly those of Entry 18's out-of-sample R². A test checks that the forecasts match it to the last digit. So the gate's evidence covers this rule: M4 at one month passed on its own (Holm p 0.0002, the sign in all three eras, out-of-sample R² 2.4%; Entry 19). No row of μ̂ needs a return after its month.
+
+### 4. How it runs *(my choice of mechanism; the rule is unchanged)*
+
+- **The engine sizes c_t × forecast⁻¹.** C1 hands it σ̂²_t / μ̂_t, which is infinite when μ̂_t is 0, so the size is c_t × μ̂_t / σ̂²_t (0 when μ̂ is 0).
+- **Everything else is the engine's own:** the real-time c_t (36 pairs, on SPY's returns), the cap, the costs (5 bp a trade, borrowing at rf + 0.5%) and monthly execution.
+- A test checks that the engine's size equals min(c_t × μ̂ / σ̂², 1.5) in every month.
+
+### 5. What is reported
+
+- **The reading:** the primary test (Entry 3) on C1 on SPY. That is the Sharpe gain over SPY held at size 1 after the same costs: one-sided at 5%, the three readings, and the minimum detectable effect. Entry 6's metrics go beside it, along with the share of months at size 0.
+- **Beside it** (information):
+  - **what VRP adds:** C1 against the volatility-only SPY rule (M2, c_t / σ̂², 36 pairs), both after costs, on C1's months. The Sharpe difference by the primary test's method, and the correlation of their sizes. If VRP's slope were 0, C1 would collapse to that rule;
+  - **the twin's run:** the same rule scored on the market factor at SPY's costs, with its own M2. It should nearly match SPY;
+  - **the crises:** Entry 8's questions on 2000–2002 and 2008–2009, the development crises these months cover;
+  - **the path:** each month's μ̂, its forecast and mean, σ̂², c_t and both sizes.
+- **Files:** `reports/phase10_trackc_c2_*.csv`, from `python -m src.vrp.walkforward`.
+
+### 6. Expectations, written before the run
+
+- **"Inconclusive" is the likely reading.** The smallest gain detectable over about 251 months is about 0.4, in line with SPY's 0.37 over 1997–2018 (Entry 7).
+- **C2 is not independent evidence.** The EDA chose VRP on these same 1990–2018 months, so a positive development reading would overstate the edge.
+- **Holdout B is Track C's first clean test.**
+
+---
+
+## Entry 22 — 2026-10-22: Track C, C2 outcome on development
+
+**Status.** Written after the one run. Entry 21 is not edited, and no rule changed after the run.
+- `python -m src.vrp.walkforward` ran on 2026-10-22, in 6 seconds, on development data only.
+- Section 6 is information added after the results were seen; it changes no reading.
+
+### 1. Checks of the run
+
+- **The months.** It scored 251 months, February 1998 to December 2018, as Entry 21 said. The first μ̂ is January 1995's.
+- **The runs beside it.** The twin's run and the volatility-only rule hold every month C1 on SPY holds.
+
+### 2. The reading: inconclusive (`reports/phase10_trackc_c2_results.csv`)
+
+| Run (251 months) | Sharpe, timed / buy-and-hold | Gain | Standard error | p | One-sided 95% bounds | MDE | Reading |
+|---|---|---|---|---|---|---|---|
+| **C1 on SPY, after costs (decides)** | 0.563 / 0.371 | **+0.192** | 0.162 | **0.118** | −0.074 to +0.459 | 0.403 | **inconclusive** |
+| C1 on the twin, at SPY's costs | 0.562 / 0.393 | +0.170 | 0.155 | 0.138 | −0.086 to +0.425 | 0.386 | inconclusive |
+| Volatility-only SPY rule, same months | 0.579 / 0.371 | +0.207 | 0.148 | 0.080 | −0.036 to +0.450 | 0.367 | inconclusive |
+
+The twin's run nearly matches SPY's, as Entry 21 expected.
+
+### 3. What VRP adds: nothing measurable on development (`_vs_volonly.csv`)
+
+- **C1 against the volatility-only rule**, both on SPY after costs, on the same 251 months: Sharpe 0.563 against 0.579. The difference is **−0.015** (standard error 0.097, one-sided p 0.56).
+- **Their sizes correlate 0.73.**
+- **C1's gain over buy-and-hold on these months is volatility timing.** The volatility-only rule earns as much on its own.
+
+### 4. The rest of Entry 6's metrics: C1 on SPY, against buy-and-hold
+
+| | C1 on SPY | Buy-and-hold | Volatility-only rule |
+|---|---|---|---|
+| Volatility | 9.4% | 14.9% | 10.5% |
+| Mean excess return, a year | 5.3% | 5.5% | 6.1% |
+| CER (γ = 5) | 3.1% | 0.0% | 3.3% |
+| Maximum drawdown | −30.7% | −56.0% | −31.0% |
+| Mean size; share capped; share at size 0 | 0.69; 6%; 3% | 1 | 0.92; 29%; 0% |
+| Turnover a year; break-even κ | 4.6; 45 bp | — | 2.7; 85 bp |
+| Spanning α, a year (t) | +2.5% (1.9) | — | +3.0% (2.0) |
+
+**C1 held nothing in 8 months:** August 2002, October 2008, September and December 2011, July 2012, November 2014, and February and July 2016. In each, the shrunk forecast was below zero at the month before's close.
+
+### 5. The development crises (`_crises.csv`)
+
+| Episode | Run | Size on buy-and-hold's five worst days (share of its loss) | The fall, timed / buy-and-hold | The rebound, timed / buy-and-hold (mean size) |
+|---|---|---|---|---|
+| 2000–2002 | C1 on SPY | 0.45 (45%) | −29% / −53% | +12% / +35% (0.48) |
+| 2000–2002 | Volatility-only | 0.34 (34%) | −30% / −53% | +13% / +35% (0.55) |
+| 2008–2009 | C1 on SPY | 0.08 (7%) | −21% / −56% | +20% / +72% (0.64) |
+| 2008–2009 | Volatility-only | 0.16 (15%) | −24% / −56% | +18% / +72% (0.61) |
+
+- **2008.** M4's VRP turned negative at September's close (−21 %² a month), so C1 held nothing in October 2008, when the market fell 17%.
+- **Both rules missed most of each rebound.**
+
+### 6. Information added after the run (not a test; it changes no reading)
+
+- **Why VRP adds little to the size.**
+  - After the 50% shrink, μ̂ varies far less than σ̂²: its middle half runs from 0.38% to 0.78% a month. So C1's size mostly follows the variance forecast.
+  - VRP mattered most at crisis turns. It held nothing in October 2008, against the volatility-only rule's 0.09. In February and March 2009 it held 0.34 and 0.30, against 0.14 and 0.17, as the market bottomed.
+- **This is not independent evidence**, as Entry 21 said: the EDA chose VRP on these same months.
+
+### 7. What follows
+
+- The plan's next step for Track C is C3: freeze C1 and run it once on Holdout B. That would be its first clean test, since no VRP result has been seen there. Then paper trading on Holdout C.
+- **Whether to freeze C1 as designed is the user's call,** given that VRP added nothing beyond volatility timing on development.
+
+---
+
+## Entry 23 — 2026-10-22: Track C stops after C2
+
+**Status.** The user's call, made after C2, on development data only.
+- **Holdout B was never opened for Track C.** No VRP result has been seen on it, and the PutWrite file's Holdout B rows stay sealed and unread.
+- Section 3 is information measured after C2's results were seen; it changes no reading.
+
+### 1. What Track C found
+
+- **C0: the gate passed.** VRP predicts the market's excess return 1, 3 and 6 months ahead, in all nine cells (Entry 19).
+- **C2: VRP added no value as a sizing signal on top of volatility timing.**
+  - C1 against the volatility-only SPY rule, on 251 development months after costs: −0.015, p 0.56 (Entry 22).
+  - C1's own gain over buy-and-hold was +0.192 (p 0.12): inconclusive.
+- **A side result:** C1 cut the maximum drawdown from −56% to −31%, as the volatility-only rule did (−31%). It supports Track A's subject, but it is not new.
+
+### 2. Why stop here (the user's reasons)
+
+- **Holdout B cannot answer Track C's question**, which is whether VRP adds value on top of volatility timing.
+  - On development the answer was −0.015, with a standard error of 0.097 over 251 months.
+  - Over Holdout B's 92 months the standard error would be about 0.16 (0.097 × √(251/92)), so it would read "inconclusive" whatever happened.
+- **Much of Holdout B's result is already known.** C1's size moves with the volatility-only rule's (correlation 0.73), and SPY's volatility timing lost 0.10 on Holdout B in Phase 9 (Entry 14). The run would largely replay a seen result.
+- **Keep Holdout B fresh for VRP.** It can be a clean test for a VRP idea only once. A better use of VRP later, such as put-writing with proper data, would still have it.
+- **Fewer looks at the holdout.** Each extra run on Holdout B adds a chance of a fluke pass somewhere across the tracks, and nothing corrects for that.
+
+### 3. Why VRP added nothing: what the run shows (information, after the run)
+
+The explanation proposed in conversation was that μ̂ moves by a factor of about 2 while the variance forecast moves by 36, so the size follows volatility. Measured like for like on C2's 251 months (`reports/phase10_trackc_c2_sizes.csv`), the two spread about equally:
+
+| Spread over C2's months | μ̂ (a month) | σ̂² (SPY's M2) |
+|---|---|---|
+| Middle half: 75th over 25th percentile | 2.05 (0.38% to 0.78%) | 2.98 (volatility 11.8% to 20.3% a year) |
+| 95th over 5th percentile | 9.6 | 10.4 |
+| Standard deviation of the log (the 243 months with μ̂ above 0) | 0.57 | 0.75 |
+
+- **The factor of 36 came from volatility's near-full range** (about 10% to 60%; 8.4% to 78.7% in these months), set against μ̂'s middle half.
+- **μ̂ and σ̂² rise together.** The correlation of their logs is 0.39: a high VIX lifts both, so they partly cancel in μ̂ / σ̂².
+- **So VRP did move the size.** C1's size correlates 0.73 with the volatility-only rule's, not 1. Those moves did not improve the Sharpe ratio over 251 months. This run does not establish why.
+- **Not re-run.** Nothing was changed after C2, including the 50% shrink. Changing it now would be tuning on development after seeing the result.
+- **Not chased.** VRP's helpful months (October 2008, February–March 2009) were noticed after the fact, on the months the EDA used. No rule is built on them.
+
+### 4. What stays
+
+- Track C's code, its pinned rules (`TRACK_C`, `PUTWRITE`, `C1`) and its results stay in the repository as the record.
+- Holdout B stays unseen for any VRP idea.
+- **Next:** Tracks A and B continue. Holdout B runs only for their frozen books.

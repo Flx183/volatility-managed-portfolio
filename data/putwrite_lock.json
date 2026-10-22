@@ -1,0 +1,16 @@
+{
+  "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/PUT_History.csv",
+  "fetched_at": "2026-10-22T07:33:56+00:00",
+  "raw_sha256": "0b8a9c90ed236e4fbf16ed6b1b2c1511794eeb149e85294ef0c04265bdd812de",
+  "bytes": 113882,
+  "sealed_at": "2026-10-22T07:39:13+00:00",
+  "dev_last_day": "2018-12-31",
+  "holdout_last_day": "2026-08-31",
+  "rows": {
+    "dev": 3027,
+    "holdout": 1926
+  },
+  "files": {
+    "putwrite_holdout.parquet": "87145c2bb9a175c28bd3571867221cfdbf08ecd6861fc60c31122f42047d9672"
+  }
+}

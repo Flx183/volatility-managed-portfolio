@@ -22,9 +22,13 @@ HOLDOUT_ACCESS_LOG = DATA_DIR / "holdout_access_log.csv"
 REPORTS_DIR = ROOT / "reports"
 
 # Development: start of data .. DEV_END. All EDA, choices and tuning happen here.
-# Holdout: HOLDOUT_START .. end of data. Read once, in Phase 9.
+# Holdout (Holdout B from Phase 10): HOLDOUT_START .. HOLDOUT_END. Opened in Phase 9; from Phase 10 it is test
+#   data only, one run per frozen strategy (PREREGISTRATION Entry 15).
+# Holdout C: FORWARD_START onward, sealed. No strategy runs on it until frozen; nothing writes it to a file yet.
 DEV_END = pd.Timestamp("2018-12-31")
 HOLDOUT_START = pd.Timestamp("2019-01-01")
+HOLDOUT_END = pd.Timestamp("2026-08-31")
+FORWARD_START = pd.Timestamp("2026-09-01")
 
 FACTORS = ["mkt", "smb", "hml", "mom", "rmw", "cma", "bab"]
 # ETFs start in 2011 (USMV) to 2013 (MTUM, QUAL): 5-7 years before DEV_END, under the 10-year initial

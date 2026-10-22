@@ -1,6 +1,37 @@
 # volatility-managed-portfolio
 Test and Implement volatility based strategy on managing portfolios risk
 
+## Summary: Phases 1–9
+
+**Question.** Does scaling a diversified factor portfolio by the inverse of its own forecast variance beat holding the same portfolio? Every choice is made in real time, from past data only, and judged after costs on data no choice ever saw.
+
+**Design.**
+- **Data.** Development is 1926–2018. A holdout (January 2019 to August 2026) was sealed by content hash before any modelling and opened once, on 20 October 2026.
+- **The strategy.** Each year-end, a screen picks the factors whose risk is predictable and poorly paid. They are mixed by inverse volatility. A GJR-GARCH forecast sets the size each month (c_t / σ̂², capped at 1.5), with c_t estimated in real time.
+- **The test,** fixed in advance: the Sharpe gain over the same book held at size 1, one-sided at 5%, read as "edge", "inconclusive" or "no meaningful edge". It is always reported with the smallest gain it could detect.
+- **The record.** Every rule is in a dated entry in [PREREGISTRATION.md](PREREGISTRATION.md) before its result, and rule tables are pinned by fingerprint.
+
+**Result: inconclusive, consistent with Cederburg et al. (2020).**
+
+| Book (holdout, 2019–2026) | Months | Sharpe, timed / buy-and-hold | Gain (p) |
+|---|---|---|---|
+| **Primary: the final test** | 91 | 0.744 / 0.656 | **+0.088 (0.31)** |
+| Best of 192 development variants | 91 | 0.651 / 0.765 | −0.114 (0.74) |
+| SPY alone, after costs | 92 | 0.790 / 0.891 | −0.102 (0.73) |
+| SPY + MTUM tilt, after costs | 92 | 0.482 / 0.468 | +0.015 (0.47) |
+| Fixed asset list (information) | 91 | 0.857 / 0.777 | +0.080 (0.32) |
+
+- **The holdout can detect only large gains.** Its minimum detectable effect is 0.45. Detecting +0.088 would take about 200 years of data.
+- **The development edge needed hindsight.** With the asset list screened in real time, timing gained +0.013 on development. With the list chosen on the full sample it gained +0.355, which shrank to +0.08 on the holdout.
+- **What timing reliably did was cut risk.** It ran at lower volatility, with smaller drawdowns, and cut size before most of the worst days in 2008, 2020 and 2022. Part of the drawdown cut is just the smaller size. The cost: missed rebounds (SPY +19% against +77% after March 2020) and a lower certainty-equivalent return.
+- **Side findings.**
+  - Forecast accuracy did not track strategy value (rank correlation −0.05).
+  - The models' Sharpe ranking followed their average size (+0.76).
+  - One market-only year (1984) decided the development verdict.
+- **Limits.** Paper-factor results are upper bounds: no costs, and BAB is not tradeable. Every sample is short for effects this small.
+
+**Full report:** [reports/research_report.md](reports/research_report.md). **Since then:** Phase 10 at the end of this file reuses the seen holdout as test-only data, adds a sealed forward holdout, and opens three new tracks.
+
 ## Phase 1: Data and Set up
 
 ```bash
@@ -344,3 +375,45 @@ python -m src.holdout.build              # the final test, run once: refuses to 
 - **Crises.**
   - 2020: risk was cut before most of the worst days. The primary held 0.28 and SPY 0.25 on them, taking 22–24% of the loss. Most of the rebound was then missed: SPY gained +19% against +77% in the year after the trough.
   - 2022: risk was cut early (SPY from 1.3 to 0.37). SPY ended the window slightly ahead (+1.3% against −1.5%).
+
+## Phase 10: After the holdout (in progress)
+
+Phase 9 opened the holdout once. From here on it is **Holdout B**: test data only, one run per frozen strategy, and every result graded clean or exploratory. A new forward sample, **Holdout C**, is sealed and does the final confirming through monthly paper trading (PREREGISTRATION Entry 15).
+
+| Sample | Dates | Use |
+|---|---|---|
+| Development | July 1926 to December 2018 | EDA, fitting, tuning, choosing |
+| Holdout B | January 2019 to August 2026 | Test only, one run per frozen strategy (`src/retest/`) |
+| Holdout C | September 2026 onward | Sealed; monthly paper trading once a strategy is frozen |
+
+- **The runner** (`src/retest/`) reuses Phase 9's panel and writes `reports/phase10_<strategy>_*.csv`. Before it opens anything, it refuses two cases:
+  - a second run of a strategy;
+  - any run whose `src/` differs from the commit frozen with the strategy's entry.
+- **The contamination log** (Entry 15) lists what Phase 9 showed and which ideas it could bias. An idea it could bias is graded exploratory on Holdout B.
+- **Step 0 is recorded** (Entries 15–18 plus Entry 20, the user's decisions, written before any run under them). Every track's Holdout C test comes 36 months after its own freeze. At that length the smallest detectable Sharpe gain is about 0.72, so for Tracks B and C, Holdout C mainly catches failures.
+- **Track A: vol timing as a risk overlay** (`src/overlay/`, Entries 16 and 20). Does timing keep risk steadier than buy-and-hold, out of sample, even when the Sharpe ratio does not move?
+  - SPY only. Two variants: A0, the frozen rule (c_t / σ̂²); A1, an inverse-volatility target.
+  - The primary metric is volatility stability: R, the standard deviation of log monthly volatility, timed over buy-and-hold. "Edge" means R < 1. The Sortino gain is the secondary metric.
+  - Inverse volatility leaves only the forecast error in the timed book's volatility. Inverse variance leaves as much as buy-and-hold, so A0 may fail this metric. A pass means steadier risk, not higher returns.
+  - Risk numbers that are not scale-free are compared with buy-and-hold at matched volatility. Development first: a power check at 36 months.
+- **Track B: fixes to the timing rule** (`src/fixes/`, Entry 17, a draft). Four changes aimed at Phase 9's causes, scored on the Sharpe ratio with the primary test:
+  - B1, a fixed 50/50 blend with an inverse-volatility rule (Wang and Yan);
+  - B2, the same on downside volatility;
+  - B3, conditional targeting (size 1 except in the forecast's top or bottom 20%);
+  - B4, a 10-month trend gate.
+  - The family of four is read through Romano-Wolf and Holm on development data. A survivor runs once on Holdout B, then paper trades on Holdout C.
+  - The primary book is SPY, read on development through the market factor at SPY's costs (1946–2018).
+- **Track C: the variance risk premium** (`src/vrp/`, Entry 18). VRP = (VIX/100)²/12 minus our forecast of next month's variance (M0, M4, M6). Phase C0 is EDA on development data (January 1990 to December 2018). It becomes a strategy only if a gate fixed before the EDA passes. The gate needs, for one model and horizon: a positive predictive slope with Holm p below 5% across 9 tests, the same sign in three equal eras, and a positive out-of-sample R².
+  - The CBOE PutWrite index is a new source (`src/vrp/putwrite.py`). Its development rows are kept, its Holdout B rows are sealed by hash in `data/putwrite_lock.json`, and Holdout C is never written. CBOE's free file starts in 2007.
+  - **C0 result (Entry 19): the gate passes, in all 9 cells.** VRP predicts the market's excess return 1, 3 and 6 months ahead (t 3.6 to 6.2), with the same sign in all three eras and out-of-sample R² from 1.0% to 8.3%. It still holds without 2008–09. Accuracy does not pay: the least accurate model (M0) gives the largest t. The PutWrite index's predictability (2007–2018) does not carry out of sample.
+  - **C1 (Entry 20): equity timing on SPY with M4's VRP.** Size = c_t × μ̂ / σ̂², capped at 1.5. μ̂ is next month's excess return forecast from VRP, shrunk 50% toward its expanding mean and floored at 0. It is reported against the volatility-only SPY rule, to isolate what VRP adds.
+  - **C2 result (Entries 21–22): inconclusive, and VRP added nothing on development.** C1 is scored on SPY after costs, February 1998 to December 2018 (251 months). It gained +0.192 over buy-and-hold (p 0.12; smallest detectable gain 0.40). The volatility-only SPY rule gained +0.207 on the same months, so C1's edge over it was −0.015 (p 0.56). It halved the drawdown (−31% against −56%) and held nothing in October 2008. 
+  - **Track C stops here (Entry 23).** Holdout B can't answer whether VRP adds value over volatility timing (92 months, an expected standard error of about 0.16), and much of its result is already known from Phase 9. It stays unopened for any later VRP idea. Like for like, μ̂ and the variance forecast spread about equally: VRP did move the size, it just didn't improve the Sharpe ratio.
+
+```bash
+python -m pytest test/test_overlay.py test/test_retest.py test/test_fixes.py test/test_vrp.py   # simulated data only
+python -m src.vrp.build                                                        # Track C's Phase C0: the EDA and its gate
+python -m src.vrp.walkforward                                                  # Track C's C2: C1's development walk-forward
+python -m src.fixes.build --mechanics --books twin spy                         # Track B end to end on development: counts only
+python -m src.fixes.build                                                      # Track B's development run (decided in Entry 20)
+```

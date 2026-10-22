@@ -11,7 +11,8 @@ Gating checks (all must pass before Phase 2):
   yahoo_internal   adjusted-close returns agree with close + dividend returns
   bounds           no impossible values
   events           one CPI and one jobs release per month; 7-8 scheduled FOMC meetings a year
-  split            development and holdout do not overlap and together cover the panel
+  split            development and holdout do not overlap and, with the sealed Holdout C rows after
+                   2026-08-31 (never written), cover the panel
 
 What looks at the holdout: dates, completeness, and pass/fail counts from the
 bounds and Yahoo checks. Nothing that reports return values (annual returns,
@@ -28,8 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.config import DEV_END, ETFS, EVENTS, FACTORS, MANIFEST, REPORTS_DIR
-from src.data.build import Build, split
+from src.config import DEV_END, ETFS, EVENTS, FACTORS, HOLDOUT_END, MANIFEST, REPORTS_DIR
+from src.data.build import Build, forward_rows, split
 
 ETF_COLS = [t.lower() for t in ETFS]
 RETURNS = FACTORS + ETF_COLS
@@ -307,14 +308,17 @@ def check_events(b: Build) -> Check:
 
 def check_split(b: Build) -> Check:
     dev, hold = split(b)
+    fwd = forward_rows(b)
     p_dev, p_hold = dev["panel"], hold["panel"]
     first_2019 = b.panel.index[b.panel.index.year == 2019][0]
-    passed = (p_dev.index.max() <= DEV_END and p_hold.index[0] == first_2019
-              and len(p_dev) + len(p_hold) == len(b.panel)
-              and len(dev["etf_ohlc"]) + len(hold["etf_ohlc"]) == len(b.ohlc)
+    passed = (p_dev.index.max() <= DEV_END and p_hold.index[0] == first_2019 and p_hold.index[-1] <= HOLDOUT_END
+              and len(p_dev) + len(p_hold) + fwd["panel"] == len(b.panel)
+              and len(dev["etf_ohlc"]) + len(hold["etf_ohlc"]) + fwd["etf_ohlc"] == len(b.ohlc)
               and dev["etf_ohlc"]["date"].max() <= DEV_END)
     summary = (f"development {_d(p_dev.index[0])} to {_d(p_dev.index[-1])} ({len(p_dev):,} days); "
                f"holdout {_d(p_hold.index[0])} to {_d(p_hold.index[-1])} ({len(p_hold):,} days), separate files")
+    if fwd["panel"]:
+        summary += f"; {fwd['panel']:,} days after {_d(HOLDOUT_END)} sealed as Holdout C, not written"
     return Check("split", passed, summary)
 
 

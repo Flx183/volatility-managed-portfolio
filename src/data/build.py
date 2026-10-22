@@ -48,7 +48,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import pandas as pd
 
-from src.config import (DEV_END, ETFS, EVENTS, EVENTS_CSV, HOLDOUT_LOCK, HOLDOUT_START, PROCESSED_DIR)
+from src.config import (DEV_END, ETFS, EVENTS, EVENTS_CSV, HOLDOUT_END, HOLDOUT_LOCK, HOLDOUT_START,
+                        PROCESSED_DIR)
 from src.data import events
 from src.data.download import RawPaths, fetch_all
 from src.data.load import content_hash
@@ -173,11 +174,18 @@ def build_panel(paths: RawPaths) -> Build:
 # ---------------------------------------------------------------- split and seal
 
 def split(b: Build) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+    """Development and the holdout (Holdout B). Rows after HOLDOUT_END are Holdout C, sealed (PREREGISTRATION
+    Entry 15): they go into neither, and no file is written for them (forward_rows counts them)."""
     d = b.ohlc["date"]
     dev = {"panel": b.panel.loc[:DEV_END], "etf_ohlc": b.ohlc[d <= DEV_END].reset_index(drop=True)}
-    hold = {"panel": b.panel.loc[HOLDOUT_START:],
-            "etf_ohlc": b.ohlc[d >= HOLDOUT_START].reset_index(drop=True)}
+    hold = {"panel": b.panel.loc[HOLDOUT_START:HOLDOUT_END],
+            "etf_ohlc": b.ohlc[(d >= HOLDOUT_START) & (d <= HOLDOUT_END)].reset_index(drop=True)}
     return dev, hold
+
+
+def forward_rows(b: Build) -> dict[str, int]:
+    """How many rows of each table fall in Holdout C (after HOLDOUT_END): sealed, never written."""
+    return {"panel": int((b.panel.index > HOLDOUT_END).sum()), "etf_ohlc": int((b.ohlc["date"] > HOLDOUT_END).sum())}
 
 
 def write_outputs(b: Build, *, seal: bool, relock: bool) -> str:
@@ -212,7 +220,7 @@ def write_outputs(b: Build, *, seal: bool, relock: bool) -> str:
     HOLDOUT_LOCK.write_text(json.dumps({
         "sealed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "dev_end": str(DEV_END.date()), "holdout_start": str(HOLDOUT_START.date()),
-        "holdout_last_day": str(b.panel.index[-1].date()),
+        "holdout_last_day": str(hold["panel"].index[-1].date()),
         "rows": {k: len(v) for k, v in hold.items()},
         "files": hashes,
     }, indent=2) + "\n")

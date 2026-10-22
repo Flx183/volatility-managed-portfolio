@@ -80,6 +80,21 @@ PINNED = {
     "src.holdout.VERDICT": ("Entry 13", "9459d3b4cebc9e16"),
     "src.holdout.DEVELOPMENT": ("Entry 13", "c6d96d90002a6b24"),
     "src.holdout.REHEARSAL": ("Entry 13", "8b8faa81bad19972"),
+    # Phase 10 on (Entry 15), fixed before any Phase 10 result
+    "src.retest.RETEST_RULES": ("Entry 15", "24a1e195c6617849"),
+    "src.retest.GRADES": ("Entry 15", "16d6ae959035aa9f"),
+    "src.retest.CONTAMINATION": ("Entry 15", "6c30c4bec832a96e"),
+    # Track C, Phase C0 (Entry 18), fixed before the EDA ran
+    "src.vrp.TRACK_C": ("Entry 18", "84d7b70627b037c7"),
+    "src.vrp.PUTWRITE": ("Entry 18", "a156d4ad7136acf1"),
+    # Tracks A and B with the user's calls (Entry 20), fixed before any run under them
+    "src.overlay.TRACK_A": ("Entry 20", "6eac37e0dec6023d"),
+    "src.overlay.OPEN": ("Entry 20", "bae4e3a5feabf1da"),
+    "src.fixes.TRACK_B": ("Entry 20", "78ffa5817ff7cde4"),
+    "src.fixes.BOOKS": ("Entry 20", "11f493970fd55ec5"),
+    "src.fixes.OPEN": ("Entry 20", "98726e525a8f3df0"),
+    # Track C, C1 (Entry 21), fixed before C2 ran
+    "src.vrp.C1": ("Entry 21", "6e4fddbdca9d5809"),
 }
 # Wrapped read-only (the rest sit in files the forecast cache is keyed on: pinned, not wrapped).
 READ_ONLY = ["src.screen.SCREEN_RULES", "src.screen.ETF_FOR", "src.portfolio.PORTFOLIO_RULES", "src.portfolio.TRACKS",
@@ -90,7 +105,9 @@ READ_ONLY = ["src.screen.SCREEN_RULES", "src.screen.ETF_FOR", "src.portfolio.POR
              "src.robustness.ROBUST_RULES", "src.robustness.CHECKS", "src.robustness.BASES",
              "src.robustness.crises.EPISODES", "src.robustness.crises.MOMENTUM_CRASHES", "src.robustness.crises.BSC",
              "src.holdout.HOLDOUT_RULES", "src.holdout.EPISODES", "src.holdout.HOLDOUT_OUTCOME", "src.holdout.VERDICT",
-             "src.holdout.DEVELOPMENT", "src.holdout.REHEARSAL"]
+             "src.holdout.DEVELOPMENT", "src.holdout.REHEARSAL", "src.retest.RETEST_RULES", "src.retest.GRADES",
+             "src.overlay.TRACK_A", "src.overlay.OPEN", "src.fixes.TRACK_B", "src.fixes.BOOKS", "src.fixes.OPEN",
+             "src.vrp.TRACK_C", "src.vrp.PUTWRITE", "src.vrp.C1"]
 
 
 def _table(name):
